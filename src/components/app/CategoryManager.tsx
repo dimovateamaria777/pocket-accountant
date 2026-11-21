@@ -17,7 +17,7 @@ export function CategoryManager() {
   const [cat, setCat] = useState("");
 
   async function run(fn: () => Promise<unknown>, ok: string) {
-    try { await fn(); toast.success(ok); qc.invalidateQueries(); } catch (e) { toast.error((e as Error).message); }
+    try { await fn(); toast.success(ok); await qc.invalidateQueries(); } catch (e) { toast.error((e as Error).message); }
   }
 
   return (

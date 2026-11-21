@@ -13,7 +13,7 @@ export function RuleCard({ proposal }: { proposal: { pattern: string; category: 
       const n = await applyRule(proposal.pattern, proposal.category);
       toast.success(`Правилото е записано. Променени ${n} плащания.`);
       setState("done");
-      qc.invalidateQueries();
+      await qc.invalidateQueries();
     } catch (e) {
       toast.error((e as Error).message);
       setState("idle");

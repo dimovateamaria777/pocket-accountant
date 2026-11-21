@@ -39,12 +39,25 @@ export function Transactions({
 
   async function change(t: Tx, category: string) {
     const kind = kindForCategory(category, t.kind);
+    const previous = qc.getQueryData<Tx[]>(["transactions"]);
+
+    // Update the shared cache immediately so every tab, including the charts, follows the edit.
+    qc.setQueryData<Tx[]>(["transactions"], (current) =>
+      current?.map((item) =>
+        item.merchant === t.merchant && item.kind === t.kind ? { ...item, category, kind } : item,
+      ),
+    );
+
     const { error } = await supabase.from("transactions").update({ category, kind }).eq("merchant", t.merchant).eq("kind", t.kind);
-    if (error) { toast.error(error.message); return; }
+    if (error) {
+      if (previous) qc.setQueryData(["transactions"], previous);
+      toast.error(error.message);
+      return;
+    }
     const { data: u } = await supabase.auth.getUser();
     await supabase.from("merchant_rules").upsert({ user_id: u.user!.id, merchant: t.merchant, category, kind }, { onConflict: "user_id,merchant" });
     toast.success(`Запомнено: „${t.merchant}“ → ${category}`);
-    qc.invalidateQueries({ queryKey: ["transactions"] });
+    await qc.invalidateQueries({ queryKey: ["transactions"] });
   }
 
   return (
