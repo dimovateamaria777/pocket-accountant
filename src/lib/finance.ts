@@ -104,7 +104,8 @@ export function byMonth(txs: Tx[]) {
 
 export function topMerchants(txs: Tx[], limit = 8) {
   const map = new Map<string, number>();
-  for (const t of txs) if (t.kind === "expense") map.set(t.merchant, (map.get(t.merchant) ?? 0) - t.amount);
+  for (const t of txs)
+    if (t.kind === "expense") map.set(t.merchant, (map.get(t.merchant) ?? 0) - t.amount);
   return [...map.entries()]
     .map(([merchant, total]) => ({ merchant, total: round2(total) }))
     .sort((a, b) => b.total - a.total)

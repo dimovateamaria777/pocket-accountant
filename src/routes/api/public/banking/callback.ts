@@ -20,7 +20,10 @@ const sessionSchema = z.object({
 });
 
 function redirect(status: "connected" | "cancelled" | "error") {
-  return new Response(null, { status: 302, headers: { Location: `/app?tab=banking&bank=${status}` } });
+  return new Response(null, {
+    status: 302,
+    headers: { Location: `/app?tab=banking&bank=${status}` },
+  });
 }
 
 export const Route = createFileRoute("/api/public/banking/callback")({
@@ -37,14 +40,21 @@ export const Route = createFileRoute("/api/public/banking/callback")({
           .select("id, user_id, bank_name, bank_country, expires_at, completed_at")
           .eq("state", state)
           .maybeSingle();
-        if (!attempt || attempt.completed_at || new Date(attempt.expires_at).getTime() < Date.now()) return redirect("error");
+        if (!attempt || attempt.completed_at || new Date(attempt.expires_at).getTime() < Date.now())
+          return redirect("error");
         if (providerError) {
-          await supabaseAdmin.from("bank_connection_attempts").update({ completed_at: new Date().toISOString() }).eq("id", attempt.id);
+          await supabaseAdmin
+            .from("bank_connection_attempts")
+            .update({ completed_at: new Date().toISOString() })
+            .eq("id", attempt.id);
           return redirect("cancelled");
         }
         if (!code) return redirect("error");
         try {
-          const rawSession = await enableBankingRequest<unknown>("/sessions", { method: "POST", body: { code } });
+          const rawSession = await enableBankingRequest<unknown>("/sessions", {
+            method: "POST",
+            body: { code },
+          });
           const session = sessionSchema.parse(rawSession);
           const accounts = session.accounts.map((account) => ({
             uid: account.uid,
@@ -62,10 +72,16 @@ export const Route = createFileRoute("/api/public/banking/callback")({
             access_valid_until: session.access?.valid_until ?? null,
           });
           if (error) throw error;
-          await supabaseAdmin.from("bank_connection_attempts").update({ completed_at: new Date().toISOString() }).eq("id", attempt.id);
+          await supabaseAdmin
+            .from("bank_connection_attempts")
+            .update({ completed_at: new Date().toISOString() })
+            .eq("id", attempt.id);
           return redirect("connected");
         } catch (error) {
-          console.error("Enable Banking callback failed", error instanceof Error ? error.message : "unknown error");
+          console.error(
+            "Enable Banking callback failed",
+            error instanceof Error ? error.message : "unknown error",
+          );
           return redirect("error");
         }
       },

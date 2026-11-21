@@ -3,31 +3,50 @@ import { streamText, Output } from "ai";
 import { z } from "zod";
 import { CATEGORIES, ruleMatches, kindForCategory, isWithdrawal } from "@/lib/finance";
 import { importTransactionSchema, type ImportPreview } from "@/lib/import";
-import { MODEL, createProvider, reasoningOptions, userClientFromRequest, aiErrorResponse } from "@/lib/ai.server";
+import {
+  MODEL,
+  createProvider,
+  reasoningOptions,
+  userClientFromRequest,
+  aiErrorResponse,
+} from "@/lib/ai.server";
 
 const aiSchema = z.object({
   source: z.string().min(1).max(100).describe("Банка или приложение, напр. Revolut, ДСК"),
-  transactions: z.array(
-    z.object({
-      date: z.string().describe("YYYY-MM-DD"),
-      description: z.string().min(1).max(2000),
-      merchant: z.string().min(1).max(300).describe("Разпознато име на търговеца/марката, напр. IKEA вместо ХАОС МАРКЕТ БЪЛГАРИЯ ЕООД"),
-      amount_eur: z.number().finite().describe("Сума в евро със знак: минус за излизащи пари, плюс за влизащи"),
-      original_amount: z.number().finite().nullable(),
-      original_currency: z.string().max(3).nullable(),
-      kind: z.enum(["expense", "income", "transfer", "refund"]),
-      category: z.string().min(1).max(100).describe("Една от позволените категории"),
-    }),
-  ).max(5000),
+  transactions: z
+    .array(
+      z.object({
+        date: z.string().describe("YYYY-MM-DD"),
+        description: z.string().min(1).max(2000),
+        merchant: z
+          .string()
+          .min(1)
+          .max(300)
+          .describe(
+            "Разпознато име на търговеца/марката, напр. IKEA вместо ХАОС МАРКЕТ БЪЛГАРИЯ ЕООД",
+          ),
+        amount_eur: z
+          .number()
+          .finite()
+          .describe("Сума в евро със знак: минус за излизащи пари, плюс за влизащи"),
+        original_amount: z.number().finite().nullable(),
+        original_currency: z.string().max(3).nullable(),
+        kind: z.enum(["expense", "income", "transfer", "refund"]),
+        category: z.string().min(1).max(100).describe("Една от позволените категории"),
+      }),
+    )
+    .max(5000),
 });
 
-const fileSchema = z.object({
-  mode: z.literal("preview").optional(),
-  fileName: z.string().min(1).max(300),
-  mime: z.string().max(100),
-  text: z.string().max(200_000).optional(),
-  base64: z.string().max(15_000_000).optional(),
-}).refine((body) => body.text || body.base64, { message: "Липсва файл." });
+const fileSchema = z
+  .object({
+    mode: z.literal("preview").optional(),
+    fileName: z.string().min(1).max(300),
+    mime: z.string().max(100),
+    text: z.string().max(200_000).optional(),
+    base64: z.string().max(15_000_000).optional(),
+  })
+  .refine((body) => body.text || body.base64, { message: "Липсва файл." });
 
 const saveSchema = z.object({
   mode: z.literal("save"),
@@ -53,16 +72,31 @@ export const Route = createFileRoute("/api/import")({
         if (!auth) return Response.json({ error: "Моля, влезте в профила си." }, { status: 401 });
         const rawBody: unknown = await request.json();
 
-        if (typeof rawBody === "object" && rawBody !== null && "mode" in rawBody && rawBody.mode === "save") {
+        if (
+          typeof rawBody === "object" &&
+          rawBody !== null &&
+          "mode" in rawBody &&
+          rawBody.mode === "save"
+        ) {
           const parsedBody = saveSchema.safeParse(rawBody);
-          if (!parsedBody.success) return Response.json({ error: "Данните за запис са невалидни." }, { status: 400 });
+          if (!parsedBody.success)
+            return Response.json({ error: "Данните за запис са невалидни." }, { status: 400 });
           const body = parsedBody.data;
           const { data: statement, error: statementError } = await auth.supabase
             .from("statements")
-            .insert({ user_id: auth.userId, file_name: body.fileName, source: body.source, tx_count: body.transactions.length })
+            .insert({
+              user_id: auth.userId,
+              file_name: body.fileName,
+              source: body.source,
+              tx_count: body.transactions.length,
+            })
             .select("id")
             .single();
-          if (statementError || !statement) return Response.json({ error: statementError?.message ?? "Грешка при запис" }, { status: 500 });
+          if (statementError || !statement)
+            return Response.json(
+              { error: statementError?.message ?? "Грешка при запис" },
+              { status: 500 },
+            );
 
           const rows = body.transactions.map((t) => ({
             user_id: auth.userId,
@@ -85,12 +119,18 @@ export const Route = createFileRoute("/api/import")({
         }
 
         const parsedBody = fileSchema.safeParse(rawBody);
-        if (!parsedBody.success) return Response.json({ error: "Липсва валиден PDF или CSV файл." }, { status: 400 });
+        if (!parsedBody.success)
+          return Response.json({ error: "Липсва валиден PDF или CSV файл." }, { status: 400 });
         const body = parsedBody.data;
         const content = body.base64
           ? [
               { type: "text" as const, text: `Файл: ${body.fileName}` },
-              { type: "file" as const, data: body.base64, mediaType: "application/pdf", filename: body.fileName },
+              {
+                type: "file" as const,
+                data: body.base64,
+                mediaType: "application/pdf",
+                filename: body.fileName,
+              },
             ]
           : [{ type: "text" as const, text: `Файл: ${body.fileName}\n\n${body.text!}` }];
 
@@ -132,11 +172,21 @@ export const Route = createFileRoute("/api/import")({
               amount: Math.round(t.amount_eur * 100) / 100,
               original_amount: t.original_amount,
               original_currency: t.original_currency,
-              kind: withdrawal ? "expense" as const : textRule ? kindForCategory(textRule.category, t.kind) : (rule?.kind ?? t.kind) as ImportPreview["transactions"][number]["kind"],
-              category: withdrawal ? "Теглене" : textRule?.category ?? rule?.category ?? baseCategory,
+              kind: withdrawal
+                ? ("expense" as const)
+                : textRule
+                  ? kindForCategory(textRule.category, t.kind)
+                  : ((rule?.kind ?? t.kind) as ImportPreview["transactions"][number]["kind"]),
+              category: withdrawal
+                ? "Теглене"
+                : (textRule?.category ?? rule?.category ?? baseCategory),
             };
           });
-        const preview: ImportPreview = { fileName: body.fileName, source: parsed.source, transactions };
+        const preview: ImportPreview = {
+          fileName: body.fileName,
+          source: parsed.source,
+          transactions,
+        };
         return Response.json(preview);
       },
     },

@@ -1,4 +1,5 @@
 <!-- LOVABLE:BEGIN -->
+
 > [!IMPORTANT]
 > This project is connected to [Lovable](https://lovable.dev). Avoid rewriting
 > published git history — force pushing, or rebasing/amending/squashing commits
@@ -27,4 +28,10 @@ use the editor.
   `LOVABLE_API_KEY`. When Lovable does not provide one, users can bring their
   own key and store it in Secrets.
 - **Secrets.** Lovable manages them. Do not put secret values in the repo.
+
 <!-- LOVABLE:END -->
+
+## Architecture
+
+- Enable Banking credentials and session exchange stay on the server; the public callback accepts only a valid, unexpired, single-use state so bank consent cannot be attached to another user.
+- Automatic bank imports deduplicate by user, bank account, and the bank's immutable entry reference so repeated synchronization does not double-count spending.
