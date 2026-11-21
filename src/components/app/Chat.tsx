@@ -3,8 +3,11 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { Calculator, Send } from "lucide-react";
 import { authHeaders } from "@/hooks/use-auth";
+import { RuleCard } from "./RuleCard";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+
+type Proposal = { pattern: string; category: string; is_new_category: boolean; matching_count: number };
 
 const SUGGESTIONS = ["Колко похарчих за храна този месец?", "За какво харча най-много?", "Колко съм дал в Lidl общо?"];
 
@@ -40,6 +43,8 @@ export function Chat() {
             <div className={m.role === "user" ? "max-w-[80%] rounded-2xl bg-primary px-4 py-2 text-primary-foreground" : "max-w-[90%] whitespace-pre-wrap"}>
               {m.parts.map((p, i) => {
                 if (p.type === "text") return <span key={i}>{p.text}</span>;
+                if (p.type === "tool-propose_rule" && "state" in p && p.state === "output-available")
+                  return <RuleCard key={i} proposal={(p as unknown as { output: Proposal }).output} />;
                 if (p.type.startsWith("tool-")) return <div key={i} className="my-1 text-xs text-muted-foreground">🧮 Пресмятам от записите…</div>;
                 return null;
               })}

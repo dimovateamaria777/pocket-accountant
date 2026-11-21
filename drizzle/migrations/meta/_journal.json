@@ -8,6 +8,13 @@
       "when": 1795270006062,
       "tag": "0000_create_finance_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1795271645890,
+      "tag": "0001_custom_categories_and_rules",
+      "breakpoints": true
     }
   ]
 }

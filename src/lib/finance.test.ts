@@ -26,3 +26,11 @@ describe("правила за отчетите", () => {
     expect(r.count).toBe(1);
   });
 });
+
+import { ruleMatches } from "./finance";
+describe("правила по текст", () => {
+  it("„purchase of btc“ хваща Revolut покупка на BTC без значение от главни букви", () => {
+    expect(ruleMatches({ merchant: "Revolut", description: "Purchase of  BTC" }, "purchase of btc")).toBe(true);
+    expect(ruleMatches({ merchant: "Revolut", description: "Purchase of ETH" }, "purchase of btc")).toBe(false);
+  });
+});

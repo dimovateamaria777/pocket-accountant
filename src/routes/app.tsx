@@ -9,6 +9,7 @@ import { Overview } from "@/components/app/Overview";
 import { Transactions } from "@/components/app/Transactions";
 import { Upload } from "@/components/app/Upload";
 import { Chat } from "@/components/app/Chat";
+import { CategoryManager } from "@/components/app/CategoryManager";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -77,7 +78,7 @@ function Data({ setTab }: { tab: string; setTab: (t: string) => void }) {
       <TabsContent value="tx">{empty ? Empty : <Transactions txs={txs} />}</TabsContent>
       <TabsContent value="chat"><Chat /></TabsContent>
       <TabsContent value="upload"><Upload onDone={() => setTab("overview")} /></TabsContent>
-      <TabsContent value="settings"><Settings /></TabsContent>
+      <TabsContent value="settings" className="space-y-6"><CategoryManager /><Settings /></TabsContent>
     </>
   );
 }
@@ -85,7 +86,7 @@ function Data({ setTab }: { tab: string; setTab: (t: string) => void }) {
 function Settings() {
   const qc = useQueryClient();
   async function wipe() {
-    for (const t of ["transactions", "statements", "merchant_rules"] as const) {
+    for (const t of ["transactions", "statements", "merchant_rules", "category_rules", "custom_categories"] as const) {
       const { error } = await supabase.from(t).delete().not("id", "is", null);
       if (error) { toast.error(error.message); return; }
     }
@@ -101,7 +102,7 @@ function Settings() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Сигурни ли сте?</AlertDialogTitle>
-            <AlertDialogDescription>Ще изтрием всички плащания, извлечения и запомнени категории. Това не може да се върне.</AlertDialogDescription>
+            <AlertDialogDescription>Ще изтрием всички плащания, извлечения, категории и правила. Това не може да се върне.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Отказ</AlertDialogCancel>

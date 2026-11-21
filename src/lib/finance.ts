@@ -112,3 +112,19 @@ export function topMerchants(txs: Tx[], limit = 8) {
 
 export const eur = (n: number) =>
   new Intl.NumberFormat("bg-BG", { style: "currency", currency: "EUR" }).format(n);
+
+const norm = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
+
+/** A text rule matches when its pattern appears in the merchant or description (case-insensitive). */
+export function ruleMatches(tx: { merchant: string; description: string }, pattern: string) {
+  const p = norm(pattern);
+  if (!p) return false;
+  return norm(`${tx.merchant} ${tx.description}`).includes(p);
+}
+
+export function kindForCategory(category: string, current: Kind): Kind {
+  if (category === "Вътрешен превод") return "transfer";
+  if (category === "Доход") return "income";
+  if (current === "refund" || category === "Възстановена сума") return "refund";
+  return "expense";
+}

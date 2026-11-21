@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { streamText, Output } from "ai";
 import { z } from "zod";
-import { CATEGORIES } from "@/lib/finance";
+import { CATEGORIES, ruleMatches, kindForCategory } from "@/lib/finance";
 import { MODEL, createProvider, reasoningOptions, userClientFromRequest, aiErrorResponse } from "@/lib/ai.server";
 
 const schema = z.object({
@@ -15,7 +15,7 @@ const schema = z.object({
       original_amount: z.number().nullable(),
       original_currency: z.string().nullable(),
       kind: z.enum(["expense", "income", "transfer", "refund"]),
-      category: z.enum(CATEGORIES),
+      category: z.string().describe("Една от позволените категории"),
     }),
   ),
 });
@@ -47,12 +47,16 @@ export const Route = createFileRoute("/api/import")({
               ]
             : [{ type: "text" as const, text: `Файл: ${body.fileName}\n\n${body.text!.slice(0, 200_000)}` }];
 
+        const { data: custom } = await auth.supabase.from("custom_categories").select("name");
+        const { data: textRules } = await auth.supabase.from("category_rules").select("pattern, category");
+        const allowed = [...CATEGORIES, ...(custom ?? []).map((c) => c.name)];
+
         let parsed: z.infer<typeof schema>;
         try {
           const provider = createProvider(request);
           const result = streamText({
             model: provider.responses(MODEL),
-            instructions: INSTRUCTIONS,
+            instructions: `${INSTRUCTIONS}\nПозволени категории (използвай точно тези имена): ${allowed.join(", ")}.`,
             messages: [{ role: "user", content }],
             output: Output.object({ schema }),
             abortSignal: request.signal,
@@ -78,6 +82,8 @@ export const Route = createFileRoute("/api/import")({
           .filter((t) => /^\d{4}-\d{2}-\d{2}$/.test(t.date))
           .map((t) => {
             const rule = ruleMap.get(t.merchant.toLowerCase());
+            const textRule = (textRules ?? []).find((r) => ruleMatches(t, r.pattern));
+            const baseCategory = allowed.includes(t.category) ? t.category : "Други";
             return {
               user_id: userId,
               statement_id: st.id,
@@ -87,8 +93,8 @@ export const Route = createFileRoute("/api/import")({
               amount: Math.round(t.amount_eur * 100) / 100,
               original_amount: t.original_amount,
               original_currency: t.original_currency,
-              kind: rule?.kind ?? t.kind,
-              category: rule?.category ?? t.category,
+              kind: textRule ? kindForCategory(textRule.category, t.kind) : (rule?.kind ?? t.kind),
+              category: textRule?.category ?? rule?.category ?? baseCategory,
             };
           });
         if (rows.length) {

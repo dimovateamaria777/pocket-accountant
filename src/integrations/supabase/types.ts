@@ -14,6 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
+      category_rules: {
+        Row: {
+          category: string
+          created_at: string
+          id: string
+          pattern: string
+          user_id: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          id?: string
+          pattern: string
+          user_id?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          id?: string
+          pattern?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      custom_categories: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       merchant_rules: {
         Row: {
           category: string
