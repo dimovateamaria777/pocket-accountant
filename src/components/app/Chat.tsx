@@ -42,7 +42,7 @@ export function Chat() {
           <div key={m.id} className={m.role === "user" ? "flex justify-end" : ""}>
             <div className={m.role === "user" ? "max-w-[80%] rounded-2xl bg-primary px-4 py-2 text-primary-foreground" : "max-w-[90%] whitespace-pre-wrap"}>
               {m.parts.map((p, i) => {
-                if (p.type === "text") return <span key={i}>{p.text}</span>;
+                if (p.type === "text") return <span key={i}>{p.text.split(/\*\*(.+?)\*\*/g).map((seg, j) => (j % 2 ? <b key={j}>{seg}</b> : seg))}</span>;
                 if (p.type === "tool-propose_rule" && "state" in p && p.state === "output-available")
                   return <RuleCard key={i} proposal={(p as unknown as { output: Proposal }).output} />;
                 if (p.type.startsWith("tool-")) return <div key={i} className="my-1 text-xs text-muted-foreground">🧮 Пресмятам от записите…</div>;
