@@ -1,0 +1,36 @@
+import { createFileRoute, Link } from "@tanstack/react-router";
+
+export const Route = createFileRoute("/privacy")({
+  head: () => ({
+    meta: [
+      { title: "Поверителност – Джоб" },
+      { name: "description", content: "Как Джоб съхранява и защитава финансовите ви данни." },
+      { property: "og:title", content: "Поверителност – Джоб" },
+      { property: "og:description", content: "Как Джоб съхранява и защитава финансовите ви данни." },
+      { property: "og:type", content: "article" },
+      { name: "twitter:card", content: "summary" },
+    ],
+  }),
+  component: Privacy,
+});
+
+function Privacy() {
+  const items = [
+    ["Какво събираме", "Само транзакциите от извлеченията, които сами качите: дата, описание, търговец, сума и категория. Не пазим самия файл и нямаме достъп до банковите ви пароли."],
+    ["Кой ги вижда", "Само вие. Всеки запис е обвързан с профила ви и защитен така, че друг потребител не може да го прочете."],
+    ["Как ги ползва AI", "AI чете файла, за да извлече плащанията, и отговаря на въпросите ви. Асистентът може само да чете. Не може да трие или променя данни. Сумите се смятат от програмата, а не се преценяват от AI."],
+    ["Изтриване", "От „Настройки“ можете по всяко време да изтриете всичките си данни с едно натискане. Изтриването е окончателно."],
+    ["Плащания в брой", "Приложението работи само с дигитални плащания от банки и платежни приложения."],
+  ];
+  return (
+    <div className="mx-auto max-w-2xl px-6 py-16">
+      <Link to="/" className="font-display text-2xl font-bold text-primary">Джоб</Link>
+      <h1 className="mt-8 font-display text-4xl font-bold">Политика за поверителност</h1>
+      <div className="mt-8 space-y-6">
+        {items.map(([t, d]) => (
+          <section key={t}><h2 className="font-semibold">{t}</h2><p className="mt-1 text-muted-foreground">{d}</p></section>
+        ))}
+      </div>
+    </div>
+  );
+}
