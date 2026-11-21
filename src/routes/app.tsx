@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { MessageCircleQuestion, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { txQuery } from "@/components/app/data";
@@ -35,7 +36,16 @@ function AppPage() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const [tab, setTab] = useState("overview");
+  const [chatOpen, setChatOpen] = useState(false);
+
   useEffect(() => { if (!loading && !user) navigate({ to: "/auth" }); }, [loading, user, navigate]);
+  useEffect(() => {
+    if (!chatOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") setChatOpen(false); };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [chatOpen]);
+
   if (!user) return <div className="p-10 text-muted-foreground">Зареждане…</div>;
   return (
     <div className="min-h-screen bg-background">
@@ -46,18 +56,47 @@ function AppPage() {
           <Button variant="ghost" size="sm" onClick={() => supabase.auth.signOut()}>Изход</Button>
         </div>
       </header>
-      <main className="mx-auto max-w-6xl px-6 pb-16">
+      <main className="mx-auto max-w-6xl px-6 pb-24">
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="mb-6 flex-wrap">
             <TabsTrigger value="overview">Табло</TabsTrigger>
             <TabsTrigger value="tx">Транзакции</TabsTrigger>
-            <TabsTrigger value="chat">Асистент</TabsTrigger>
             <TabsTrigger value="upload">Качи извлечение</TabsTrigger>
             <TabsTrigger value="settings">Настройки</TabsTrigger>
           </TabsList>
           <Data tab={tab} setTab={setTab} />
         </Tabs>
       </main>
+
+      <div
+        role="dialog"
+        aria-modal="false"
+        aria-label="Финансов асистент"
+        className={chatOpen
+          ? "fixed inset-x-3 bottom-24 top-20 z-50 flex flex-col overflow-hidden rounded-3xl border bg-card shadow-2xl sm:inset-auto sm:bottom-24 sm:right-6 sm:h-[min(640px,calc(100dvh-8rem))] sm:w-[400px]"
+          : "hidden"}
+      >
+        <div className="flex items-center justify-between border-b px-4 py-3">
+          <div>
+            <h2 className="font-display text-lg font-bold">Вашият асистент</h2>
+            <p className="text-xs text-muted-foreground">Смята от реалните ви записи</p>
+          </div>
+          <Button variant="ghost" size="icon" onClick={() => setChatOpen(false)} aria-label="Затвори асистента"><X /></Button>
+        </div>
+        <div className="min-h-0 flex-1"><Chat active={chatOpen} /></div>
+      </div>
+
+      {!chatOpen && (
+        <Button
+          size="lg"
+          onClick={() => setChatOpen(true)}
+          aria-expanded={chatOpen}
+          className="fixed bottom-5 right-5 z-50 h-14 rounded-full px-5 shadow-xl"
+        >
+          <MessageCircleQuestion />
+          Асистент
+        </Button>
+      )}
     </div>
   );
 }
@@ -76,7 +115,6 @@ function Data({ setTab }: { tab: string; setTab: (t: string) => void }) {
     <>
       <TabsContent value="overview">{empty ? Empty : <Overview txs={txs} />}</TabsContent>
       <TabsContent value="tx">{empty ? Empty : <Transactions txs={txs} />}</TabsContent>
-      <TabsContent value="chat"><Chat /></TabsContent>
       <TabsContent value="upload"><Upload onDone={() => setTab("overview")} /></TabsContent>
       <TabsContent value="settings" className="space-y-6"><CategoryManager /><Settings /></TabsContent>
     </>
