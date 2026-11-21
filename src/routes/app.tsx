@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { MessageCircleQuestion, X } from "lucide-react";
@@ -14,6 +14,12 @@ import { CategoryManager } from "@/components/app/CategoryManager";
 import { BankConnections } from "@/components/app/BankConnections";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  DEFAULT_TRANSACTION_VIEW,
+  applyTransactionViewPatch,
+  type TransactionView,
+  type TransactionViewPatch,
+} from "@/lib/transaction-view";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -54,6 +60,12 @@ function AppPage() {
       : "overview",
   );
   const [chatOpen, setChatOpen] = useState(false);
+  const [txView, setTxView] = useState<TransactionView>({ ...DEFAULT_TRANSACTION_VIEW, hiddenCategories: [] });
+
+  const applyAssistantView = useCallback((patch: TransactionViewPatch) => {
+    setTxView((current) => applyTransactionViewPatch(current, patch));
+    setTab("tx");
+  }, []);
 
   useEffect(() => {
     if (!loading && !user) navigate({ to: "/auth" });
@@ -97,7 +109,7 @@ function AppPage() {
             <TabsTrigger value="banking">Свържи банка</TabsTrigger>
             <TabsTrigger value="settings">Настройки</TabsTrigger>
           </TabsList>
-          <Data tab={tab} setTab={setTab} />
+          <Data setTab={setTab} txView={txView} onTxViewChange={setTxView} />
         </Tabs>
       </main>
 
@@ -126,7 +138,7 @@ function AppPage() {
           </Button>
         </div>
         <div className="min-h-0 flex-1">
-          <Chat active={chatOpen} />
+          <Chat active={chatOpen} onTransactionView={applyAssistantView} />
         </div>
       </div>
 
@@ -145,7 +157,15 @@ function AppPage() {
   );
 }
 
-function Data({ setTab }: { tab: string; setTab: (t: string) => void }) {
+function Data({
+  setTab,
+  txView,
+  onTxViewChange,
+}: {
+  setTab: (t: string) => void;
+  txView: TransactionView;
+  onTxViewChange: (view: TransactionView) => void;
+}) {
   const { data: txs = [], isLoading } = useQuery(txQuery);
   const empty = !isLoading && txs.length === 0;
   const Empty = (
@@ -162,7 +182,9 @@ function Data({ setTab }: { tab: string; setTab: (t: string) => void }) {
   return (
     <>
       <TabsContent value="overview">{empty ? Empty : <Overview txs={txs} />}</TabsContent>
-      <TabsContent value="tx">{empty ? Empty : <Transactions txs={txs} />}</TabsContent>
+      <TabsContent value="tx">
+        {empty ? Empty : <Transactions txs={txs} view={txView} onViewChange={onTxViewChange} />}
+      </TabsContent>
       <TabsContent value="upload">
         <Upload onDone={() => setTab("overview")} />
       </TabsContent>

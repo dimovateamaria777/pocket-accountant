@@ -1,20 +1,41 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { ArrowDownUp, RotateCcw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { KIND_LABELS, eur, kindForCategory, type Tx } from "@/lib/finance";
 import { useQuery } from "@tanstack/react-query";
 import { categoriesQuery } from "./categories";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  DEFAULT_TRANSACTION_VIEW,
+  applyTransactionViewPatch,
+  isDefaultTransactionView,
+  visibleTransactions,
+  type TransactionSort,
+  type TransactionView,
+} from "@/lib/transaction-view";
 
-
-export function Transactions({ txs }: { txs: Tx[] }) {
+export function Transactions({
+  txs,
+  view,
+  onViewChange,
+}: {
+  txs: Tx[];
+  view: TransactionView;
+  onViewChange: (view: TransactionView) => void;
+}) {
   const qc = useQueryClient();
   const [q, setQ] = useState("");
   const { data: cats } = useQuery(categoriesQuery);
   const all = cats?.all ?? [];
-  const shown = txs.filter((t) => !q || `${t.merchant} ${t.description} ${t.category}`.toLowerCase().includes(q.toLowerCase()));
+  const visible = visibleTransactions(txs, view);
+  const shown = visible.filter(
+    (t) => !q || `${t.merchant} ${t.description} ${t.category}`.toLowerCase().includes(q.toLowerCase()),
+  );
+  const isDefault = isDefaultTransactionView(view);
 
   async function change(t: Tx, category: string) {
     const kind = kindForCategory(category, t.kind);
@@ -28,7 +49,49 @@ export function Transactions({ txs }: { txs: Tx[] }) {
 
   return (
     <div className="rounded-2xl border bg-card p-5">
-      <Input placeholder="Търсене по търговец или категория…" value={q} onChange={(e) => setQ(e.target.value)} className="mb-4 max-w-sm" />
+      <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <Input placeholder="Търсене по търговец или категория…" value={q} onChange={(e) => setQ(e.target.value)} className="max-w-sm" />
+        <div className="flex flex-wrap items-center gap-2">
+          <Select
+            value={view.sort}
+            onValueChange={(sort: TransactionSort) => onViewChange(applyTransactionViewPatch(view, { sort }))}
+          >
+            <SelectTrigger className="w-48" aria-label="Подреждане на транзакциите"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="date">По дата</SelectItem>
+              <SelectItem value="category">По категория</SelectItem>
+              <SelectItem value="amount">По големина на сумата</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onViewChange({ ...view, direction: view.direction === "asc" ? "desc" : "asc" })}
+            aria-label={view.direction === "asc" ? "Смени на низходящо подреждане" : "Смени на възходящо подреждане"}
+          >
+            <ArrowDownUp />
+            {view.direction === "asc" ? "Възходящо" : "Низходящо"}
+          </Button>
+          {!isDefault && (
+            <Button variant="ghost" size="sm" onClick={() => onViewChange({ ...DEFAULT_TRANSACTION_VIEW, hiddenCategories: [] })}>
+              <RotateCcw />
+              Изчисти изгледа
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {!isDefault && (
+        <div className="mb-4 rounded-xl bg-muted px-4 py-3 text-sm" aria-live="polite">
+          <p className="font-medium">Показани {shown.length} от {txs.length} записа</p>
+          <p className="mt-1 text-muted-foreground">
+            {view.expensesOnly && "Само разходи. "}
+            {view.hiddenCategories.length > 0 && `Скрити категории: ${view.hiddenCategories.join(", ")}. `}
+            Записите не са изтрити или променени.
+          </p>
+        </div>
+      )}
+
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="text-left text-muted-foreground">
@@ -51,6 +114,7 @@ export function Transactions({ txs }: { txs: Tx[] }) {
             ))}
           </tbody>
         </table>
+        {shown.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">Няма записи по тези условия.</p>}
       </div>
     </div>
   );

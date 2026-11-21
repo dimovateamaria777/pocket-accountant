@@ -1,19 +1,31 @@
 import { useEffect, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { Calculator, Send } from "lucide-react";
+import { Calculator, ListFilter, Send } from "lucide-react";
 import { authHeaders } from "@/hooks/use-auth";
 import { RuleCard } from "./RuleCard";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import type { TransactionViewPatch } from "@/lib/transaction-view";
 
 type Proposal = { pattern: string; category: string; is_new_category: boolean; matching_count: number };
 
-const SUGGESTIONS = ["Колко похарчих за храна този месец?", "За какво харча най-много?", "Колко съм дал в Lidl общо?"];
+const SUGGESTIONS = [
+  "Колко похарчих за храна този месец?",
+  "Скрий категория Инвестиции от списъка",
+  "Подреди разходите по големина на сумата",
+];
 
-export function Chat({ active = true }: { active?: boolean }) {
+export function Chat({
+  active = true,
+  onTransactionView,
+}: {
+  active?: boolean;
+  onTransactionView: (patch: TransactionViewPatch) => void;
+}) {
   const [input, setInput] = useState("");
   const ref = useRef<HTMLTextAreaElement>(null);
+  const appliedViewTool = useRef<string | null>(null);
   const { messages, sendMessage, status, error } = useChat({
     transport: new DefaultChatTransport({ api: "/api/chat", headers: authHeaders }),
   });
@@ -22,6 +34,19 @@ export function Chat({ active = true }: { active?: boolean }) {
   useEffect(() => {
     if (active && !busy) ref.current?.focus();
   }, [active, busy]);
+
+  useEffect(() => {
+    const viewTools = messages.flatMap((message) =>
+      message.parts.map((part, index) => ({ message, part, key: `${message.id}:${index}` })),
+    ).filter(({ part }) =>
+      part.type === "tool-set_transaction_view" && "state" in part && part.state === "output-available",
+    );
+    const latest = viewTools.at(-1);
+    if (!latest || appliedViewTool.current === latest.key) return;
+    appliedViewTool.current = latest.key;
+    const output = (latest.part as unknown as { output: TransactionViewPatch }).output;
+    onTransactionView(output);
+  }, [messages, onTransactionView]);
 
   function send(text: string) {
     if (!text.trim() || busy) return;
@@ -48,6 +73,15 @@ export function Chat({ active = true }: { active?: boolean }) {
                 if (p.type === "text") return <span key={i}>{p.text.split(/\*\*(.+?)\*\*/g).map((seg, j) => (j % 2 ? <b key={j}>{seg}</b> : seg))}</span>;
                 if (p.type === "tool-propose_rule" && "state" in p && p.state === "output-available")
                   return <RuleCard key={i} proposal={(p as unknown as { output: Proposal }).output} />;
+                if (p.type === "tool-set_transaction_view") {
+                  const done = "state" in p && p.state === "output-available";
+                  return (
+                    <div key={i} className="my-2 flex items-center gap-2 rounded-xl bg-muted px-3 py-2 text-xs">
+                      <ListFilter className="h-4 w-4 shrink-0 text-accent" />
+                      {done ? "Изгледът в „Транзакции“ е обновен. Записите не са променени." : "Настройвам изгледа…"}
+                    </div>
+                  );
+                }
                 if (p.type.startsWith("tool-")) return <div key={i} className="my-1 text-xs text-muted-foreground">🧮 Пресмятам от записите…</div>;
                 return null;
               })}
