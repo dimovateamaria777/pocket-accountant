@@ -14,6 +14,7 @@ export const CATEGORIES = [
   "Доход",
   "Вътрешен превод",
   "Възстановена сума",
+  "Теглене",
   "Други",
 ] as const;
 
@@ -120,6 +121,11 @@ export function ruleMatches(tx: { merchant: string; description: string }, patte
   const p = norm(pattern);
   if (!p) return false;
   return norm(`${tx.merchant} ${tx.description}`).includes(p);
+}
+
+/** Cash-machine and other withdrawals always have their own visible category. */
+export function isWithdrawal(tx: { merchant: string; description: string }) {
+  return ruleMatches(tx, "теглене");
 }
 
 export function kindForCategory(category: string, current: Kind): Kind {

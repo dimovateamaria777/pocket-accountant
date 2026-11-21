@@ -15,6 +15,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as ApiImportRouteImport } from './routes/api/import'
+import { Route as ApiPublicBankingCallbackRouteImport } from './routes/api/public/banking/callback'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -46,6 +47,12 @@ const ApiImportRoute = ApiImportRouteImport.update({
   path: '/api/import',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicBankingCallbackRoute =
+  ApiPublicBankingCallbackRouteImport.update({
+    id: '/api/public/banking/callback',
+    path: '/api/public/banking/callback',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -54,6 +61,7 @@ export interface FileRoutesByFullPath {
   '/privacy': typeof PrivacyRoute
   '/api/chat': typeof ApiChatRoute
   '/api/import': typeof ApiImportRoute
+  '/api/public/banking/callback': typeof ApiPublicBankingCallbackRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -62,6 +70,7 @@ export interface FileRoutesByTo {
   '/privacy': typeof PrivacyRoute
   '/api/chat': typeof ApiChatRoute
   '/api/import': typeof ApiImportRoute
+  '/api/public/banking/callback': typeof ApiPublicBankingCallbackRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -71,12 +80,27 @@ export interface FileRoutesById {
   '/privacy': typeof PrivacyRoute
   '/api/chat': typeof ApiChatRoute
   '/api/import': typeof ApiImportRoute
+  '/api/public/banking/callback': typeof ApiPublicBankingCallbackRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/app' | '/auth' | '/privacy' | '/api/chat' | '/api/import'
+  fullPaths:
+    | '/'
+    | '/app'
+    | '/auth'
+    | '/privacy'
+    | '/api/chat'
+    | '/api/import'
+    | '/api/public/banking/callback'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/app' | '/auth' | '/privacy' | '/api/chat' | '/api/import'
+  to:
+    | '/'
+    | '/app'
+    | '/auth'
+    | '/privacy'
+    | '/api/chat'
+    | '/api/import'
+    | '/api/public/banking/callback'
   id:
     | '__root__'
     | '/'
@@ -85,6 +109,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/api/chat'
     | '/api/import'
+    | '/api/public/banking/callback'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -94,6 +119,7 @@ export interface RootRouteChildren {
   PrivacyRoute: typeof PrivacyRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiImportRoute: typeof ApiImportRoute
+  ApiPublicBankingCallbackRoute: typeof ApiPublicBankingCallbackRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -140,6 +166,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiImportRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/banking/callback': {
+      id: '/api/public/banking/callback'
+      path: '/api/public/banking/callback'
+      fullPath: '/api/public/banking/callback'
+      preLoaderRoute: typeof ApiPublicBankingCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -150,6 +183,7 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyRoute: PrivacyRoute,
   ApiChatRoute: ApiChatRoute,
   ApiImportRoute: ApiImportRoute,
+  ApiPublicBankingCallbackRoute: ApiPublicBankingCallbackRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

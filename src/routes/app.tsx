@@ -11,6 +11,7 @@ import { Transactions } from "@/components/app/Transactions";
 import { Upload } from "@/components/app/Upload";
 import { Chat } from "@/components/app/Chat";
 import { CategoryManager } from "@/components/app/CategoryManager";
+import { BankConnections } from "@/components/app/BankConnections";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -19,6 +20,10 @@ import {
 } from "@/components/ui/alert-dialog";
 
 export const Route = createFileRoute("/app")({
+  validateSearch: (search: Record<string, unknown>): { tab?: string; bank?: string } => ({
+    ...(typeof search["tab"] === "string" ? { tab: search["tab"] } : {}),
+    ...(typeof search["bank"] === "string" ? { bank: search["bank"] } : {}),
+  }),
   head: () => ({
     meta: [
       { title: "Моите финанси – Джоб" },
@@ -35,10 +40,16 @@ export const Route = createFileRoute("/app")({
 function AppPage() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
-  const [tab, setTab] = useState("overview");
+  const search = Route.useSearch();
+  const [tab, setTab] = useState(["overview", "tx", "upload", "banking", "settings"].includes(search.tab ?? "") ? search.tab! : "overview");
   const [chatOpen, setChatOpen] = useState(false);
 
   useEffect(() => { if (!loading && !user) navigate({ to: "/auth" }); }, [loading, user, navigate]);
+  useEffect(() => {
+    if (search.bank === "connected") toast.success("Банката е свързана. Започва първото синхронизиране.");
+    if (search.bank === "cancelled") toast.message("Свързването е отказано. Не е записано разрешение.");
+    if (search.bank === "error") toast.error("Свързването не завърши. Опитайте отново.");
+  }, [search.bank]);
   useEffect(() => {
     if (!chatOpen) return;
     const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") setChatOpen(false); };
@@ -62,6 +73,7 @@ function AppPage() {
             <TabsTrigger value="overview">Табло</TabsTrigger>
             <TabsTrigger value="tx">Транзакции</TabsTrigger>
             <TabsTrigger value="upload">Качи извлечение</TabsTrigger>
+            <TabsTrigger value="banking">Свържи банка</TabsTrigger>
             <TabsTrigger value="settings">Настройки</TabsTrigger>
           </TabsList>
           <Data tab={tab} setTab={setTab} />
@@ -116,6 +128,7 @@ function Data({ setTab }: { tab: string; setTab: (t: string) => void }) {
       <TabsContent value="overview">{empty ? Empty : <Overview txs={txs} />}</TabsContent>
       <TabsContent value="tx">{empty ? Empty : <Transactions txs={txs} />}</TabsContent>
       <TabsContent value="upload"><Upload onDone={() => setTab("overview")} /></TabsContent>
+      <TabsContent value="banking"><BankConnections /></TabsContent>
       <TabsContent value="settings" className="space-y-6"><CategoryManager /><Settings /></TabsContent>
     </>
   );
@@ -124,7 +137,7 @@ function Data({ setTab }: { tab: string; setTab: (t: string) => void }) {
 function Settings() {
   const qc = useQueryClient();
   async function wipe() {
-    for (const t of ["transactions", "statements", "merchant_rules", "category_rules", "custom_categories"] as const) {
+    for (const t of ["transactions", "bank_connection_attempts", "bank_connections", "statements", "merchant_rules", "category_rules", "custom_categories"] as const) {
       const { error } = await supabase.from(t).delete().not("id", "is", null);
       if (error) { toast.error(error.message); return; }
     }

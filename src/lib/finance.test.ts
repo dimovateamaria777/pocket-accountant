@@ -27,10 +27,15 @@ describe("правила за отчетите", () => {
   });
 });
 
-import { ruleMatches } from "./finance";
+import { isWithdrawal, ruleMatches } from "./finance";
 describe("правила по текст", () => {
   it("„purchase of btc“ хваща Revolut покупка на BTC без значение от главни букви", () => {
     expect(ruleMatches({ merchant: "Revolut", description: "Purchase of  BTC" }, "purchase of btc")).toBe(true);
     expect(ruleMatches({ merchant: "Revolut", description: "Purchase of ETH" }, "purchase of btc")).toBe(false);
+  });
+  it("всеки запис с „теглене“ се разпознава за категория Теглене", () => {
+    expect(isWithdrawal({ merchant: "Банкомат", description: "Теглене на пари" })).toBe(true);
+    expect(isWithdrawal({ merchant: "Revolut", description: "ATM ТЕГЛЕНЕ" })).toBe(true);
+    expect(isWithdrawal({ merchant: "Billa", description: "Покупка" })).toBe(false);
   });
 });

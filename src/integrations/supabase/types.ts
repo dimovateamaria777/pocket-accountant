@@ -14,6 +14,78 @@ export type Database = {
   }
   public: {
     Tables: {
+      bank_connection_attempts: {
+        Row: {
+          bank_country: string
+          bank_name: string
+          completed_at: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          state: string
+          user_id: string
+        }
+        Insert: {
+          bank_country: string
+          bank_name: string
+          completed_at?: string | null
+          created_at?: string
+          expires_at: string
+          id?: string
+          state: string
+          user_id?: string
+        }
+        Update: {
+          bank_country?: string
+          bank_name?: string
+          completed_at?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          state?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      bank_connections: {
+        Row: {
+          access_valid_until: string | null
+          accounts: Json
+          bank_country: string
+          bank_name: string
+          created_at: string
+          id: string
+          last_synced_at: string | null
+          provider: string
+          session_id: string
+          user_id: string
+        }
+        Insert: {
+          access_valid_until?: string | null
+          accounts?: Json
+          bank_country: string
+          bank_name: string
+          created_at?: string
+          id?: string
+          last_synced_at?: string | null
+          provider?: string
+          session_id: string
+          user_id?: string
+        }
+        Update: {
+          access_valid_until?: string | null
+          accounts?: Json
+          bank_country?: string
+          bank_name?: string
+          created_at?: string
+          id?: string
+          last_synced_at?: string | null
+          provider?: string
+          session_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       category_rules: {
         Row: {
           category: string
@@ -116,10 +188,13 @@ export type Database = {
       transactions: {
         Row: {
           amount: number
+          bank_account_id: string | null
+          bank_connection_id: string | null
           category: string
           created_at: string
           currency: string
           description: string
+          external_id: string | null
           id: string
           kind: string
           merchant: string
@@ -131,10 +206,13 @@ export type Database = {
         }
         Insert: {
           amount: number
+          bank_account_id?: string | null
+          bank_connection_id?: string | null
           category?: string
           created_at?: string
           currency?: string
           description: string
+          external_id?: string | null
           id?: string
           kind?: string
           merchant: string
@@ -146,10 +224,13 @@ export type Database = {
         }
         Update: {
           amount?: number
+          bank_account_id?: string | null
+          bank_connection_id?: string | null
           category?: string
           created_at?: string
           currency?: string
           description?: string
+          external_id?: string | null
           id?: string
           kind?: string
           merchant?: string
@@ -160,6 +241,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "transactions_bank_connection_id_fkey"
+            columns: ["bank_connection_id"]
+            isOneToOne: false
+            referencedRelation: "bank_connections"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "transactions_statement_id_fkey"
             columns: ["statement_id"]
