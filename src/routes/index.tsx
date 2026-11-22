@@ -61,6 +61,13 @@ function Index() {
           ))}
         </section>
       </main>
+      <footer className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 border-t px-6 py-6 text-sm text-muted-foreground">
+        <span>Джоб — личен AI счетоводител</span>
+        <nav className="flex gap-5" aria-label="Правна информация">
+          <Link to="/privacy" className="transition-colors hover:text-foreground">Поверителност</Link>
+          <Link to="/terms" className="transition-colors hover:text-foreground">Условия за ползване</Link>
+        </nav>
+      </footer>
     </div>
   );
 }
