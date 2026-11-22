@@ -204,6 +204,9 @@ export const syncBankConnection = createServerFn({ method: "POST" })
     let skipped = 0;
     let pages = 0;
     for (const account of accounts) {
+      // Reconnecting the same bank gives new account uids; the identification hash stays the
+      // same, so it is the dedup scope and repeated consents do not import the account twice.
+      const accountKey = account.identification_hash || account.uid;
       let continuationKey: string | null = null;
       const fetched: BankTransaction[] = [];
       for (;;) {
@@ -239,7 +242,7 @@ export const syncBankConnection = createServerFn({ method: "POST" })
       }
 
       const candidates = fetched.map((transaction) =>
-        toImportRow(transaction, account.uid, connection.id, context.userId),
+        toImportRow(transaction, accountKey, connection.id, context.userId),
       );
       skipped += candidates.filter((candidate) => !candidate.row).length;
       const rows = candidates.flatMap((candidate) => (candidate.row ? [candidate.row] : []));
@@ -249,7 +252,7 @@ export const syncBankConnection = createServerFn({ method: "POST" })
       const { data: existing, error: existingError } = await context.supabase
         .from("transactions")
         .select("external_id, tx_date, amount, description")
-        .eq("bank_account_id", account.uid)
+        .eq("bank_account_id", accountKey)
         .gte("tx_date", dates[0]!)
         .lte("tx_date", dates[dates.length - 1]!)
         .limit(5000);
@@ -257,7 +260,7 @@ export const syncBankConnection = createServerFn({ method: "POST" })
       const { data: reviews, error: reviewError } = await context.supabase
         .from("bank_sync_reviews")
         .select("review_key")
-        .eq("bank_account_id", account.uid);
+        .eq("bank_account_id", accountKey);
       if (reviewError) throw reviewError;
       const externalIds = new Set<string>();
       const fingerprints = new Set<string>();
@@ -271,7 +274,7 @@ export const syncBankConnection = createServerFn({ method: "POST" })
         const { data: more, error: moreError } = await context.supabase
           .from("transactions")
           .select("external_id")
-          .eq("bank_account_id", account.uid)
+          .eq("bank_account_id", accountKey)
           .in("external_id", ids.slice(i, i + 400));
         if (moreError) throw moreError;
         for (const row of more ?? []) if (row.external_id) externalIds.add(row.external_id);
@@ -318,7 +321,7 @@ export const syncBankConnection = createServerFn({ method: "POST" })
             plan.review.map((item) => ({
               user_id: context.userId,
               bank_connection_id: connection.id,
-              bank_account_id: account.uid,
+              bank_account_id: accountKey,
               review_key: item.key,
               reason: item.reason,
               payload: categorize(item.row),

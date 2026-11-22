@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX IF NOT EXISTS transactions_bank_entry_unique_all ON public.transactions (user_id, bank_account_id, external_id);

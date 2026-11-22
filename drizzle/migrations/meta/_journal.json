@@ -50,6 +50,13 @@
       "when": 1795353547704,
       "tag": "0006_bank_sync_reviews",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1795353996299,
+      "tag": "0007_transactions_bank_entry_unique_full",
+      "breakpoints": true
     }
   ]
 }
