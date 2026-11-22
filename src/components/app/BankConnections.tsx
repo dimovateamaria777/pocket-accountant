@@ -8,6 +8,8 @@ import { syncInfoPay } from "@/lib/infopay.functions";
 import {
   disconnectBank,
   getBankConnections,
+  getBankReviews,
+  resolveBankReview,
   listBanks,
   startBankConnection,
   syncBankConnection,
@@ -53,6 +55,26 @@ export function BankConnections() {
   const runSync = useServerFn(syncBankConnection);
   const runInfoPaySync = useServerFn(syncInfoPay);
   const runDisconnect = useServerFn(disconnectBank);
+  const fetchReviews = useServerFn(getBankReviews);
+  const runResolve = useServerFn(resolveBankReview);
+  const [resolving, setResolving] = useState<string | null>(null);
+  const reviews = useQuery({ queryKey: ["bank-reviews"], queryFn: () => fetchReviews() });
+
+  async function resolve(reviewId: string, action: "save" | "skip") {
+    setResolving(reviewId);
+    try {
+      await runResolve({ data: { reviewId, action } });
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["bank-reviews"] }),
+        qc.invalidateQueries({ queryKey: ["transactions"] }),
+      ]);
+      toast.success(action === "save" ? "Записано като отделно плащане." : "Пропуснато.");
+    } catch (error) {
+      toast.error((error as Error).message);
+    } finally {
+      setResolving(null);
+    }
+  }
 
   const banks = useQuery({
     queryKey: ["enable-banking-banks", country],
@@ -80,8 +102,13 @@ export function BankConnections() {
         await Promise.all([
           qc.invalidateQueries({ queryKey: ["transactions"] }),
           qc.invalidateQueries({ queryKey: ["bank-connections"] }),
+          qc.invalidateQueries({ queryKey: ["bank-reviews"] }),
         ]);
-        const message = `${result.added} нови плащания; ${result.alreadyKnown} вече записани${result.skipped ? `; ${result.skipped} пропуснати за проверка` : ""}.`;
+        const toReview = "toReview" in result ? result.toReview : 0;
+        const message =
+          "knownByBankId" in result
+            ? `${result.added} нови; ${result.knownByBankId} вече записани по банков идентификатор; ${toReview} за проверка${toReview ? " (вижте „За проверка“ по-долу)" : ""}${result.skipped ? `; ${result.skipped} невалидни реда пропуснати` : ""}.`
+            : `${result.added} нови плащания; ${result.alreadyKnown} вече записани${result.skipped ? `; ${result.skipped} пропуснати за проверка` : ""}.`;
         if (automatic) toast.message(`Автоматична синхронизация: ${message}`);
         else toast.success(message);
         return result;
@@ -300,6 +327,53 @@ export function BankConnections() {
               </div>
             </div>
           ))}
+          {!!reviews.data?.length && (
+            <div id="bank-reviews" className="rounded-xl border p-4">
+              <h3 className="font-display text-lg font-bold">За проверка ({reviews.data.length})</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Банката не е дала идентификатор за тези движения и те съвпадат с друго плащане. Не
+                влизат в справките, докато не решите.
+              </p>
+              <ul className="mt-3 space-y-2">
+                {reviews.data.map((item) => (
+                  <li
+                    key={item.id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted p-3 text-sm"
+                  >
+                    <div>
+                      <p className="font-semibold">
+                        {new Date(item.date).toLocaleDateString("bg-BG")} ·{" "}
+                        {item.amount.toLocaleString("bg-BG", { style: "currency", currency: "EUR" })}
+                      </p>
+                      <p className="text-muted-foreground">{item.description}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {item.reason === "same_in_response"
+                          ? "Еднакво с друго движение в същия отговор на банката"
+                          : "Съвпада с вече записано плащане"}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        disabled={resolving === item.id}
+                        onClick={() => resolve(item.id, "save")}
+                      >
+                        Запиши като отделно плащане
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={resolving === item.id}
+                        onClick={() => resolve(item.id, "skip")}
+                      >
+                        Пропусни
+                      </Button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {!connections.isLoading && !connections.data?.length && (
             <p className="text-sm text-muted-foreground">Още няма свързана банка.</p>
           )}

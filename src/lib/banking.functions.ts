@@ -3,6 +3,13 @@ import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { enableBankingRequest } from "@/lib/enable-banking.server";
+import {
+  bankEntryId,
+  parseBankTransactions,
+  planBankRows,
+  rowFingerprint,
+  type BankTransaction,
+} from "@/lib/bank-sync";
 import { isWithdrawal, kindForCategory, ruleMatches, type Kind } from "@/lib/finance";
 
 const countrySchema = z.string().regex(/^[A-Z]{2}$/);
@@ -12,29 +19,7 @@ const bankAccountSchema = z.object({
   name: z.string().optional(),
   currency: z.string().optional(),
 });
-const bankTransactionSchema = z.object({
-  entry_reference: z.string().max(300).optional(),
-  transaction_amount: z.object({ currency: z.string().length(3), amount: z.string() }),
-  credit_debit_indicator: z.enum(["CRDT", "DBIT"]),
-  status: z.string(),
-  booking_date: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
-    .optional(),
-  value_date: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
-    .optional(),
-  transaction_date: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
-    .optional(),
-  creditor: z.object({ name: z.string().max(300).optional() }).optional(),
-  debtor: z.object({ name: z.string().max(300).optional() }).optional(),
-  bank_transaction_code: z.object({ description: z.string().max(500).optional() }).optional(),
-  remittance_information: z.array(z.string().max(1000)).max(20).optional(),
-});
-type BankTransaction = z.infer<typeof bankTransactionSchema>;
+
 
 export const listBanks = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -154,8 +139,7 @@ function toImportRow(
     "Банково плащане";
   const description = descriptionParts.join(" · ") || merchant;
   const date = transaction.booking_date ?? transaction.value_date ?? transaction.transaction_date;
-  if (!date || !transaction.entry_reference)
-    return { skipped: "missing_reference_or_date" as const };
+  if (!date) return { skipped: "missing_date" as const };
   const originalAmount = Number(transaction.transaction_amount.amount);
   if (!Number.isFinite(originalAmount)) return { skipped: "invalid_amount" as const };
   const currency = transaction.transaction_amount.currency.toUpperCase();
@@ -169,7 +153,7 @@ function toImportRow(
       user_id: userId,
       bank_connection_id: connectionId,
       bank_account_id: accountId,
-      external_id: transaction.entry_reference,
+      external_id: bankEntryId(transaction),
       tx_date: date,
       description: description.slice(0, 2000),
       merchant: merchant.slice(0, 300),
@@ -215,7 +199,8 @@ export const syncBankConnection = createServerFn({ method: "POST" })
       : new Date(Date.now() - 90 * 86_400_000).toISOString().slice(0, 10);
 
     let added = 0;
-    let alreadyKnown = 0;
+    let knownByBankId = 0;
+    let alreadyDecided = 0;
     let skipped = 0;
     let pages = 0;
     for (const account of accounts) {
@@ -229,12 +214,21 @@ export const syncBankConnection = createServerFn({ method: "POST" })
         });
         if (continuationKey) params.set("continuation_key", continuationKey);
         const result = await enableBankingRequest<{
-          transactions?: unknown[];
+          transactions?: unknown[] | null;
           continuation_key?: string | null;
         }>(`/accounts/${account.uid}/transactions?${params}`);
-        const page = z.array(bankTransactionSchema).safeParse(result.transactions ?? []);
-        if (!page.success) throw new Error("Банката върна неразпознат формат на плащанията.");
-        fetched.push(...page.data);
+        if (result.transactions != null && !Array.isArray(result.transactions)) {
+          console.error("Enable Banking transactions: unexpected shape", typeof result.transactions);
+          throw new Error("Банката върна неразпознат формат на плащанията.");
+        }
+        const page = parseBankTransactions(result.transactions ?? []);
+        if (page.invalid)
+          console.warn(
+            "Enable Banking transactions: skipped invalid rows",
+            JSON.stringify({ invalid: page.invalid, sample: page.issues.slice(0, 2) }),
+          );
+        skipped += page.invalid;
+        fetched.push(...page.valid);
         pages += 1;
         continuationKey = result.continuation_key ?? null;
         if (!continuationKey) break;
@@ -249,21 +243,47 @@ export const syncBankConnection = createServerFn({ method: "POST" })
       );
       skipped += candidates.filter((candidate) => !candidate.row).length;
       const rows = candidates.flatMap((candidate) => (candidate.row ? [candidate.row] : []));
-      const externalIds = [...new Set(rows.map((row) => row.external_id))];
-      const known = new Set<string>();
-      for (let i = 0; i < externalIds.length; i += 400) {
-        const chunk = externalIds.slice(i, i + 400);
-        const { data: existing, error: existingError } = await context.supabase
+      if (!rows.length) continue;
+
+      const dates = rows.map((row) => row.tx_date).sort();
+      const { data: existing, error: existingError } = await context.supabase
+        .from("transactions")
+        .select("external_id, tx_date, amount, description")
+        .eq("bank_account_id", account.uid)
+        .gte("tx_date", dates[0]!)
+        .lte("tx_date", dates[dates.length - 1]!)
+        .limit(5000);
+      if (existingError) throw existingError;
+      const { data: reviews, error: reviewError } = await context.supabase
+        .from("bank_sync_reviews")
+        .select("review_key")
+        .eq("bank_account_id", account.uid);
+      if (reviewError) throw reviewError;
+      const externalIds = new Set<string>();
+      const fingerprints = new Set<string>();
+      for (const row of existing ?? []) {
+        if (row.external_id) externalIds.add(row.external_id);
+        fingerprints.add(rowFingerprint({ ...row, amount: Number(row.amount) }));
+      }
+      // Rows outside the date window can still carry a known bank id.
+      const ids = [...new Set(rows.flatMap((row) => (row.external_id ? [row.external_id] : [])))];
+      for (let i = 0; i < ids.length; i += 400) {
+        const { data: more, error: moreError } = await context.supabase
           .from("transactions")
           .select("external_id")
           .eq("bank_account_id", account.uid)
-          .in("external_id", chunk);
-        if (existingError) throw existingError;
-        for (const row of existing ?? []) if (row.external_id) known.add(row.external_id);
+          .in("external_id", ids.slice(i, i + 400));
+        if (moreError) throw moreError;
+        for (const row of more ?? []) if (row.external_id) externalIds.add(row.external_id);
       }
-      const newRows = rows.filter((row) => !known.has(row.external_id));
-      alreadyKnown += rows.length - newRows.length;
-      const categorized = newRows.map((row) => {
+      const plan = planBankRows(rows, {
+        externalIds,
+        fingerprints,
+        reviewKeys: new Set((reviews ?? []).map((review) => review.review_key)),
+      });
+      knownByBankId += plan.knownByBankId;
+      alreadyDecided += plan.alreadyDecided;
+      const categorize = <R extends (typeof rows)[number]>(row: R) => {
         const withdrawal = isWithdrawal(row);
         const merchantRule = merchantRuleMap.get(row.merchant.toLowerCase());
         const textRule = (textRules ?? []).find((rule) => ruleMatches(row, rule.pattern));
@@ -278,21 +298,54 @@ export const syncBankConnection = createServerFn({ method: "POST" })
             ? kindForCategory(textRule.category, row.kind as Kind)
             : ((merchantRule?.kind as Kind | undefined) ?? row.kind);
         return { ...row, category, kind };
-      });
+      };
+      const categorized = plan.insert.map(categorize);
       for (let i = 0; i < categorized.length; i += 400) {
-        const { error: insertError } = await context.supabase
+        const { data: inserted, error: insertError } = await context.supabase
           .from("transactions")
-          .insert(categorized.slice(i, i + 400));
+          .upsert(categorized.slice(i, i + 400), {
+            onConflict: "user_id,bank_account_id,external_id",
+            ignoreDuplicates: true,
+          })
+          .select("id");
         if (insertError) throw insertError;
+        added += inserted?.length ?? 0;
       }
-      added += categorized.length;
+      if (plan.review.length) {
+        const { error: insertReviewError } = await context.supabase
+          .from("bank_sync_reviews")
+          .upsert(
+            plan.review.map((item) => ({
+              user_id: context.userId,
+              bank_connection_id: connection.id,
+              bank_account_id: account.uid,
+              review_key: item.key,
+              reason: item.reason,
+              payload: categorize(item.row),
+            })),
+            { onConflict: "user_id,bank_account_id,review_key", ignoreDuplicates: true },
+          );
+        if (insertReviewError) throw insertReviewError;
+      }
     }
+    const { count: toReview } = await context.supabase
+      .from("bank_sync_reviews")
+      .select("id", { count: "exact", head: true })
+      .eq("bank_connection_id", connection.id)
+      .eq("status", "pending");
     const { error: updateError } = await context.supabase
       .from("bank_connections")
       .update({ last_synced_at: new Date().toISOString() })
       .eq("id", connection.id);
     if (updateError) throw updateError;
-    return { added, alreadyKnown, skipped, pages };
+    return {
+      added,
+      alreadyKnown: knownByBankId + alreadyDecided,
+      knownByBankId,
+      toReview: toReview ?? 0,
+      skipped,
+      pages,
+    };
   });
 
 export const disconnectBank = createServerFn({ method: "POST" })
@@ -318,4 +371,41 @@ export const disconnectBank = createServerFn({ method: "POST" })
       .eq("id", connection.id);
     if (deleteError) throw deleteError;
     return { disconnected: true };
+  });
+
+export const getBankReviews = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data, error } = await context.supabase
+      .from("bank_sync_reviews")
+      .select("id, bank_connection_id, reason, payload, created_at")
+      .eq("status", "pending")
+      .order("created_at", { ascending: true })
+      .limit(500);
+    if (error) throw error;
+    return (data ?? []).map((item) => {
+      const payload = item.payload as Record<string, unknown>;
+      return {
+        id: item.id,
+        connectionId: item.bank_connection_id,
+        reason: item.reason as "same_in_response" | "matches_existing",
+        date: String(payload["tx_date"] ?? ""),
+        amount: Number(payload["amount"] ?? 0),
+        description: String(payload["description"] ?? ""),
+      };
+    });
+  });
+
+export const resolveBankReview = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { reviewId: string; action: "save" | "skip" }) =>
+    z.object({ reviewId: z.string().uuid(), action: z.enum(["save", "skip"]) }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { data: status, error } = await context.supabase.rpc("resolve_bank_sync_review", {
+      _review_id: data.reviewId,
+      _action: data.action,
+    });
+    if (error) throw new Error("Решението не беше записано. Опитайте отново.");
+    return { status };
   });

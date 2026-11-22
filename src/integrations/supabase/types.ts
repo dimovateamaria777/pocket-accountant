@@ -86,6 +86,53 @@ export type Database = {
         }
         Relationships: []
       }
+      bank_sync_reviews: {
+        Row: {
+          bank_account_id: string
+          bank_connection_id: string
+          created_at: string
+          id: string
+          payload: Json
+          reason: string
+          resolved_at: string | null
+          review_key: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          bank_account_id: string
+          bank_connection_id: string
+          created_at?: string
+          id?: string
+          payload: Json
+          reason: string
+          resolved_at?: string | null
+          review_key: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          bank_account_id?: string
+          bank_connection_id?: string
+          created_at?: string
+          id?: string
+          payload?: Json
+          reason?: string
+          resolved_at?: string | null
+          review_key?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_sync_reviews_bank_connection_id_fkey"
+            columns: ["bank_connection_id"]
+            isOneToOne: false
+            referencedRelation: "bank_connections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       category_rules: {
         Row: {
           category: string
@@ -337,6 +384,10 @@ export type Database = {
       commit_import_preview: {
         Args: { p_corrections: Json; p_preview_id: string }
         Returns: Json
+      }
+      resolve_bank_sync_review: {
+        Args: { _action: string; _review_id: string }
+        Returns: string
       }
       save_statement_import: {
         Args: {
