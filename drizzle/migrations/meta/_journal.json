@@ -64,6 +64,13 @@
       "when": 1795355920046,
       "tag": "0008_category_merchant_breakdown",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1795357290256,
+      "tag": "0009_create_financial_goals",
+      "breakpoints": true
     }
   ]
 }

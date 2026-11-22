@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { summaryQuery } from "@/components/app/data";
 import { Overview } from "@/components/app/Overview";
+import { Goals } from "@/components/app/Goals";
 import { Transactions } from "@/components/app/Transactions";
 import { Upload } from "@/components/app/Upload";
 import { Chat } from "@/components/app/Chat";
@@ -44,13 +45,13 @@ export const Route = createFileRoute("/app")({
       {
         name: "description",
         content:
-          "Табло с разходите по категории, доходите по източник и инвестициите по дестинации.",
+          "Табло с разходите по категории, доходите, инвестициите и финансови цели с реален напредък.",
       },
       { property: "og:title", content: "Моите финанси – Personal Accountant" },
       {
         property: "og:description",
         content:
-          "Табло с разходите по категории, доходите по източник и инвестициите по дестинации.",
+          "Табло с разходите по категории, доходите, инвестициите и финансови цели с реален напредък.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -64,11 +65,12 @@ function AppPage() {
   const navigate = useNavigate();
   const search = Route.useSearch();
   const [tab, setTab] = useState(
-    ["overview", "tx", "upload", "banking", "settings"].includes(search.tab ?? "")
+    ["overview", "goals", "tx", "upload", "banking", "settings"].includes(search.tab ?? "")
       ? search.tab!
       : "overview",
   );
   const [chatOpen, setChatOpen] = useState(false);
+  const [assistantLaunch, setAssistantLaunch] = useState<{ id: number; text: string } | null>(null);
   const [txView, setTxView] = useState<TransactionView>({
     ...DEFAULT_TRANSACTION_VIEW,
     hiddenCategories: [],
@@ -77,6 +79,13 @@ function AppPage() {
   const applyAssistantView = useCallback((patch: TransactionViewPatch) => {
     setTxView((current) => applyTransactionViewPatch(current, patch));
     setTab("tx");
+  }, []);
+  const createGoalWithAssistant = useCallback(() => {
+    setAssistantLaunch({
+      id: Date.now(),
+      text: "Искам да създам финансова цел. Помогни ми да избера месечен лимит за категория или спестяване до дата, използвайки реалните ми транзакции.",
+    });
+    setChatOpen(true);
   }, []);
 
   useEffect(() => {
@@ -116,12 +125,13 @@ function AppPage() {
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="mb-6 flex-wrap">
             <TabsTrigger value="overview">Табло</TabsTrigger>
+            <TabsTrigger value="goals">Финансови цели</TabsTrigger>
             <TabsTrigger value="tx">Транзакции</TabsTrigger>
             <TabsTrigger value="upload">Моите извлечения</TabsTrigger>
             <TabsTrigger value="banking">Свържи банка</TabsTrigger>
             <TabsTrigger value="settings">Настройки</TabsTrigger>
           </TabsList>
-          <Data setTab={setTab} txView={txView} onTxViewChange={setTxView} />
+          <Data setTab={setTab} txView={txView} onTxViewChange={setTxView} onCreateGoal={createGoalWithAssistant} />
         </Tabs>
       </main>
 
@@ -150,7 +160,12 @@ function AppPage() {
           </Button>
         </div>
         <div className="min-h-0 flex-1">
-          <Chat active={chatOpen} onTransactionView={applyAssistantView} />
+          <Chat
+            active={chatOpen}
+            onTransactionView={applyAssistantView}
+            launchRequest={assistantLaunch}
+            onGoalConfirmed={() => setTab("goals")}
+          />
         </div>
       </div>
 
@@ -173,10 +188,12 @@ function Data({
   setTab,
   txView,
   onTxViewChange,
+  onCreateGoal,
 }: {
   setTab: (t: string) => void;
   txView: TransactionView;
   onTxViewChange: (view: TransactionView) => void;
+  onCreateGoal: () => void;
 }) {
   const { data: summary, isLoading } = useQuery(summaryQuery);
   const { data: categoryData } = useQuery(categoriesQuery);
@@ -197,6 +214,9 @@ function Data({
     <>
       <TabsContent value="overview">
         {empty ? Empty : <Overview customCategories={customCategories} />}
+      </TabsContent>
+      <TabsContent value="goals">
+        <Goals onCreateWithAssistant={onCreateGoal} />
       </TabsContent>
       <TabsContent value="tx">
         {empty ? Empty : <Transactions view={txView} onViewChange={onTxViewChange} />}
@@ -226,6 +246,8 @@ function Settings() {
       "merchant_rules",
       "category_rules",
       "custom_categories",
+      "goal_contributions",
+      "financial_goals",
     ] as const) {
       const { error } = await supabase.from(t).delete().not("id", "is", null);
       if (error) {
@@ -253,7 +275,7 @@ function Settings() {
           <AlertDialogHeader>
             <AlertDialogTitle>Сигурни ли сте?</AlertDialogTitle>
             <AlertDialogDescription>
-              Ще изтрием всички плащания, извлечения, категории и правила. Това не може да се върне.
+              Ще изтрием всички плащания, извлечения, категории, правила, финансови цели и заделяния. Това не може да се върне.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

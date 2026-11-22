@@ -4,6 +4,8 @@ import { DefaultChatTransport } from "ai";
 import { Calculator, ListFilter, Send } from "lucide-react";
 import { authHeaders } from "@/hooks/use-auth";
 import { RuleCard } from "./RuleCard";
+import { GoalProposalCard } from "./GoalProposalCard";
+import type { GoalProposal } from "@/lib/goals";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { TransactionViewPatch } from "@/lib/transaction-view";
@@ -20,13 +22,18 @@ const SUGGESTIONS = [
 export function Chat({
   active = true,
   onTransactionView,
+  launchRequest = null,
+  onGoalConfirmed,
 }: {
   active?: boolean;
   onTransactionView: (patch: TransactionViewPatch) => void;
+  launchRequest?: { id: number; text: string } | null;
+  onGoalConfirmed: () => void;
 }) {
   const [input, setInput] = useState("");
   const ref = useRef<HTMLTextAreaElement>(null);
   const appliedViewTool = useRef<string | null>(null);
+  const appliedLaunch = useRef<number | null>(null);
   const { messages, sendMessage, status, error } = useChat({
     transport: new DefaultChatTransport({ api: "/api/chat", headers: authHeaders }),
   });
@@ -35,6 +42,12 @@ export function Chat({
   useEffect(() => {
     if (active && !busy) ref.current?.focus();
   }, [active, busy]);
+
+  useEffect(() => {
+    if (!active || busy || !launchRequest || appliedLaunch.current === launchRequest.id) return;
+    appliedLaunch.current = launchRequest.id;
+    sendMessage({ text: launchRequest.text });
+  }, [active, busy, launchRequest, sendMessage]);
 
   useEffect(() => {
     const viewTools = messages.flatMap((message) =>
@@ -74,6 +87,18 @@ export function Chat({
                 if (p.type === "text") return <span key={i}>{p.text.split(/\*\*(.+?)\*\*/g).map((seg, j) => (j % 2 ? <b key={j}>{seg}</b> : seg))}</span>;
                 if (p.type === "tool-propose_rule" && "state" in p && p.state === "output-available")
                   return <RuleCard key={i} proposal={(p as unknown as { output: Proposal }).output} />;
+                if (
+                  (p.type === "tool-propose_monthly_limit" || p.type === "tool-propose_savings_goal") &&
+                  "state" in p &&
+                  p.state === "output-available"
+                )
+                  return (
+                    <GoalProposalCard
+                      key={i}
+                      proposal={(p as unknown as { output: GoalProposal }).output}
+                      onConfirmed={onGoalConfirmed}
+                    />
+                  );
                 if (p.type === "tool-set_transaction_view") {
                   const done = "state" in p && p.state === "output-available";
                   return (
