@@ -40,11 +40,87 @@ type RoundedSectorProps = {
   startAngle?: number | undefined;
   endAngle?: number | undefined;
   fill?: string | undefined;
+  explosion?: number | undefined;
+  offset?: string | number | undefined;
+  payload?: { label?: string } | undefined;
 };
+
+type Point = { x: number; y: number };
 
 function polarPoint(cx: number, cy: number, radius: number, angle: number) {
   const radians = (angle * Math.PI) / 180;
   return { x: cx + radius * Math.cos(radians), y: cy - radius * Math.sin(radians) };
+}
+
+function point(point: Point) {
+  return `${point.x} ${point.y}`;
+}
+
+function fullRingPath(cx: number, cy: number, innerRadius: number, outerRadius: number) {
+  const outerStart = polarPoint(cx, cy, outerRadius, 90);
+  const outerMiddle = polarPoint(cx, cy, outerRadius, -90);
+  const innerStart = polarPoint(cx, cy, innerRadius, 90);
+  const innerMiddle = polarPoint(cx, cy, innerRadius, -90);
+  return [
+    `M ${point(outerStart)}`,
+    `A ${outerRadius} ${outerRadius} 0 1 0 ${point(outerMiddle)}`,
+    `A ${outerRadius} ${outerRadius} 0 1 0 ${point(outerStart)} Z`,
+    `M ${point(innerStart)}`,
+    `A ${innerRadius} ${innerRadius} 0 1 1 ${point(innerMiddle)}`,
+    `A ${innerRadius} ${innerRadius} 0 1 1 ${point(innerStart)} Z`,
+  ].join(" ");
+}
+
+function roundedSectorPath(
+  cx: number,
+  cy: number,
+  innerRadius: number,
+  outerRadius: number,
+  startAngle: number,
+  endAngle: number,
+) {
+  const span = Math.abs(endAngle - startAngle);
+  if (span >= 359.999) return fullRingPath(cx, cy, innerRadius, outerRadius);
+
+  const direction = endAngle >= startAngle ? 1 : -1;
+  const thickness = outerRadius - innerRadius;
+  const cornerRadius = Math.max(
+    0.5,
+    Math.min(10, thickness * 0.28, (span * Math.PI * innerRadius) / 360),
+  );
+  const outerTrim = Math.min(span * 0.45, (cornerRadius * 180) / (Math.PI * outerRadius));
+  const innerTrim = Math.min(span * 0.45, (cornerRadius * 180) / (Math.PI * innerRadius));
+  const radialTrim = Math.min(thickness * 0.45, cornerRadius);
+
+  const outerStart = polarPoint(cx, cy, outerRadius, startAngle);
+  const outerStartArc = polarPoint(cx, cy, outerRadius, startAngle + direction * outerTrim);
+  const outerStartRadial = polarPoint(cx, cy, outerRadius - radialTrim, startAngle);
+  const outerEnd = polarPoint(cx, cy, outerRadius, endAngle);
+  const outerEndArc = polarPoint(cx, cy, outerRadius, endAngle - direction * outerTrim);
+  const outerEndRadial = polarPoint(cx, cy, outerRadius - radialTrim, endAngle);
+  const innerEnd = polarPoint(cx, cy, innerRadius, endAngle);
+  const innerEndRadial = polarPoint(cx, cy, innerRadius + radialTrim, endAngle);
+  const innerEndArc = polarPoint(cx, cy, innerRadius, endAngle - direction * innerTrim);
+  const innerStart = polarPoint(cx, cy, innerRadius, startAngle);
+  const innerStartArc = polarPoint(cx, cy, innerRadius, startAngle + direction * innerTrim);
+  const innerStartRadial = polarPoint(cx, cy, innerRadius + radialTrim, startAngle);
+
+  const outerLargeArc = span - outerTrim * 2 > 180 ? 1 : 0;
+  const innerLargeArc = span - innerTrim * 2 > 180 ? 1 : 0;
+  const outerSweep = direction === 1 ? 0 : 1;
+  const innerSweep = direction === 1 ? 1 : 0;
+
+  return [
+    `M ${point(outerStartArc)}`,
+    `A ${outerRadius} ${outerRadius} 0 ${outerLargeArc} ${outerSweep} ${point(outerEndArc)}`,
+    `Q ${point(outerEnd)} ${point(outerEndRadial)}`,
+    `L ${point(innerEndRadial)}`,
+    `Q ${point(innerEnd)} ${point(innerEndArc)}`,
+    `A ${innerRadius} ${innerRadius} 0 ${innerLargeArc} ${innerSweep} ${point(innerStartArc)}`,
+    `Q ${point(innerStart)} ${point(innerStartRadial)}`,
+    `L ${point(outerStartRadial)}`,
+    `Q ${point(outerStart)} ${point(outerStartArc)} Z`,
+  ].join(" ");
 }
 
 function RoundedSector({
@@ -55,26 +131,16 @@ function RoundedSector({
   startAngle = 0,
   endAngle = 0,
   fill,
+  explosion = 1.5,
 }: RoundedSectorProps) {
-  const radius = (innerRadius + outerRadius) / 2;
-  const angle = Math.abs(endAngle - startAngle);
-  const start = polarPoint(cx, cy, radius, startAngle);
-  const end = polarPoint(cx, cy, radius, endAngle);
-  const largeArc = angle > 180 ? 1 : 0;
-  const path = angle >= 359.999
-    ? (() => {
-        const middle = polarPoint(cx, cy, radius, startAngle + 180);
-        return `M ${start.x} ${start.y} A ${radius} ${radius} 0 1 0 ${middle.x} ${middle.y} A ${radius} ${radius} 0 1 0 ${start.x} ${start.y}`;
-      })()
-    : `M ${start.x} ${start.y} A ${radius} ${radius} 0 ${largeArc} 0 ${end.x} ${end.y}`;
-
+  const middleAngle = (startAngle + endAngle) / 2;
+  const shift = polarPoint(0, 0, explosion, middleAngle);
   return (
     <path
-      d={path}
-      fill="none"
-      stroke={fill}
-      strokeWidth={outerRadius - innerRadius}
-      strokeLinecap="round"
+      d={roundedSectorPath(cx + shift.x, cy + shift.y, innerRadius, outerRadius, startAngle, endAngle)}
+      fill={fill}
+      fillRule="evenodd"
+      stroke="none"
     />
   );
 }
@@ -190,6 +256,7 @@ function BreakdownCard({
 }) {
   const hasValues = rows.some((row) => row.total > 0);
   const total = rows.reduce((sum, row) => sum + row.total, 0);
+  const [hoveredLabel, setHoveredLabel] = useState<string | null>(null);
   return (
     <Card title={title}>
       {onBack && (
@@ -206,11 +273,21 @@ function BreakdownCard({
                 data={rows}
                 dataKey="total"
                 nameKey="label"
-                innerRadius={82}
+                innerRadius={64}
                 outerRadius={100}
-                paddingAngle={14}
+                paddingAngle={7}
                 activeIndex={rows.map((_, index) => index)}
-                activeShape={RoundedSector}
+                activeShape={(props: RoundedSectorProps) => (
+                  <RoundedSector
+                    {...props}
+                    explosion={hoveredLabel && props.payload?.label === hoveredLabel ? 6 : 1.5}
+                  />
+                )}
+                onMouseEnter={(data) => {
+                  const row = (data as { payload?: BreakdownRow } | undefined)?.payload;
+                  if (row) setHoveredLabel(row.label);
+                }}
+                onMouseLeave={() => setHoveredLabel(null)}
                 stroke="none"
                 strokeWidth={0}
                 onClick={(data) => {
