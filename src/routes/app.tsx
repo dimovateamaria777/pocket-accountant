@@ -41,9 +41,17 @@ export const Route = createFileRoute("/app")({
   head: () => ({
     meta: [
       { title: "Моите финанси – Джоб" },
-      { name: "description", content: "Табло с разходите и доходите ви по категории и инвестициите по дестинации." },
+      {
+        name: "description",
+        content:
+          "Табло с разходите по категории, доходите по източник и инвестициите по дестинации.",
+      },
       { property: "og:title", content: "Моите финанси – Джоб" },
-      { property: "og:description", content: "Табло с разходите и доходите ви по категории и инвестициите по дестинации." },
+      {
+        property: "og:description",
+        content:
+          "Табло с разходите по категории, доходите по източник и инвестициите по дестинации.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],

@@ -4,6 +4,7 @@ import {
   computeIncome,
   spendingByCategory,
   incomeByCategory,
+  incomeBySource,
   investmentsByDestination,
   type Tx,
 } from "./finance";
@@ -64,11 +65,37 @@ describe("правила за отчетите", () => {
       { category: "Наем", total: 500 },
     ]);
   });
+  it("доходите се групират по реалния платец, а не по категорията Доход", () => {
+    const rows = incomeBySource([
+      tx({ kind: "income", merchant: "Работодател ООД", category: "Доход", amount: 2000 }),
+      tx({ kind: "income", merchant: "Работодател ООД", category: "Доход", amount: 35 }),
+      tx({ kind: "income", merchant: "Наемодател", category: "Доход", amount: 500 }),
+    ]);
+    expect(rows).toEqual([
+      { source: "Работодател ООД", total: 2035 },
+      { source: "Наемодател", total: 500 },
+    ]);
+  });
   it("инвестициите се групират по закупения актив, а не само по Revolut", () => {
     const rows = investmentsByDestination([
-      tx({ merchant: "Revolut", description: "Purchase of BTC", category: "Инвестиции", amount: -100 }),
-      tx({ merchant: "Revolut", description: "purchase of btc", category: "Инвестиции", amount: -50 }),
-      tx({ merchant: "Revolut", description: "Purchase of ETH", category: "Инвестиции", amount: -30 }),
+      tx({
+        merchant: "Revolut",
+        description: "Purchase of BTC",
+        category: "Инвестиции",
+        amount: -100,
+      }),
+      tx({
+        merchant: "Revolut",
+        description: "purchase of btc",
+        category: "Инвестиции",
+        amount: -50,
+      }),
+      tx({
+        merchant: "Revolut",
+        description: "Purchase of ETH",
+        category: "Инвестиции",
+        amount: -30,
+      }),
     ]);
     expect(rows).toEqual([
       { destination: "BTC", total: 150 },
@@ -77,8 +104,19 @@ describe("правила за отчетите", () => {
   });
   it("възстановената инвестиция намалява сумата за съответния актив", () => {
     const rows = investmentsByDestination([
-      tx({ merchant: "Revolut", description: "Purchase of BTC", category: "Инвестиции", amount: -100 }),
-      tx({ merchant: "Revolut", description: "Purchase of BTC", category: "Инвестиции", kind: "refund", amount: 20 }),
+      tx({
+        merchant: "Revolut",
+        description: "Purchase of BTC",
+        category: "Инвестиции",
+        amount: -100,
+      }),
+      tx({
+        merchant: "Revolut",
+        description: "Purchase of BTC",
+        category: "Инвестиции",
+        kind: "refund",
+        amount: 20,
+      }),
     ]);
     expect(rows).toEqual([{ destination: "BTC", total: 80 }]);
   });

@@ -111,6 +111,22 @@ export function incomeByCategory(txs: Tx[], f: TxFilter = {}) {
     .sort((a, b) => b.total - a.total);
 }
 
+export function incomeBySource(txs: Tx[]) {
+  const map = new Map<string, { source: string; total: number }>();
+  for (const t of txs) {
+    if (t.kind !== "income") continue;
+    const source = t.merchant.trim() || "Неуточнен източник";
+    const key = source.toLocaleLowerCase("bg-BG");
+    const current = map.get(key) ?? { source, total: 0 };
+    current.total += t.amount;
+    map.set(key, current);
+  }
+  return [...map.values()]
+    .map((row) => ({ ...row, total: round2(row.total) }))
+    .filter((row) => row.total > 0)
+    .sort((a, b) => b.total - a.total);
+}
+
 export function isInvestmentCategory(category: string) {
   return category.toLocaleLowerCase("bg-BG").includes("инвестиц");
 }
@@ -118,7 +134,8 @@ export function isInvestmentCategory(category: string) {
 /** Uses the purchased asset when the statement names it, otherwise the broker or merchant. */
 function investmentDestination(tx: Tx) {
   const description = tx.description.trim();
-  const asset = description.match(/(?:purchase\s+of|покупка\s+на)\s+(.+)/i)?.[1]
+  const asset = description
+    .match(/(?:purchase\s+of|покупка\s+на)\s+(.+)/i)?.[1]
     ?.replace(/[.,;]+$/, "")
     .trim();
   return asset || tx.merchant.trim() || description || "Неуточнено";

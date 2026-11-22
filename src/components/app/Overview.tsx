@@ -16,7 +16,7 @@ import {
   computeIncome,
   computeSpending,
   eur,
-  incomeByCategory,
+  incomeBySource,
   investmentsByDestination,
   isInvestmentCategory,
   spendingByCategory,
@@ -51,11 +51,12 @@ export function Overview({
     [txs, customCategories],
   );
   const incomeRows = useMemo<BreakdownRow[]>(
-    () => incomeByCategory(txs).map((row) => ({ label: row.category, total: row.total })),
+    () => incomeBySource(txs).map((row) => ({ label: row.source, total: row.total })),
     [txs],
   );
   const investmentRows = useMemo<BreakdownRow[]>(
-    () => investmentsByDestination(txs).map((row) => ({ label: row.destination, total: row.total })),
+    () =>
+      investmentsByDestination(txs).map((row) => ({ label: row.destination, total: row.total })),
     [txs],
   );
   const merchants = useMemo(() => topMerchants(txs), [txs]);
@@ -82,7 +83,7 @@ export function Overview({
           showZeroHint
         />
         <BreakdownCard
-          title="Доходи по категории"
+          title="Откъде идват доходите"
           rows={incomeRows}
           emptyText="Все още няма доходи за показване."
         />
