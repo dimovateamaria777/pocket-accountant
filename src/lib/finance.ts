@@ -99,6 +99,49 @@ export function spendingByCategory(
   return rows;
 }
 
+export function incomeByCategory(txs: Tx[], f: TxFilter = {}) {
+  const map = new Map<string, number>();
+  for (const t of txs) {
+    if (t.kind !== "income" || !matches(t, f)) continue;
+    map.set(t.category, (map.get(t.category) ?? 0) + t.amount);
+  }
+  return [...map.entries()]
+    .map(([category, total]) => ({ category, total: round2(total) }))
+    .filter((row) => row.total > 0)
+    .sort((a, b) => b.total - a.total);
+}
+
+export function isInvestmentCategory(category: string) {
+  return category.toLocaleLowerCase("bg-BG").includes("инвестиц");
+}
+
+/** Uses the purchased asset when the statement names it, otherwise the broker or merchant. */
+function investmentDestination(tx: Tx) {
+  const description = tx.description.trim();
+  const asset = description.match(/(?:purchase\s+of|покупка\s+на)\s+(.+)/i)?.[1]
+    ?.replace(/[.,;]+$/, "")
+    .trim();
+  return asset || tx.merchant.trim() || description || "Неуточнено";
+}
+
+/** Net invested money by asset or provider; refunds reduce it and transfers stay excluded. */
+export function investmentsByDestination(txs: Tx[]) {
+  const map = new Map<string, { destination: string; total: number }>();
+  for (const t of txs) {
+    if (!isInvestmentCategory(t.category)) continue;
+    if (t.kind !== "expense" && t.kind !== "refund") continue;
+    const destination = investmentDestination(t);
+    const key = destination.toLocaleLowerCase("bg-BG");
+    const current = map.get(key) ?? { destination, total: 0 };
+    current.total += t.kind === "expense" ? -t.amount : -Math.abs(t.amount);
+    map.set(key, current);
+  }
+  return [...map.values()]
+    .map((row) => ({ ...row, total: round2(row.total) }))
+    .filter((row) => row.total > 0)
+    .sort((a, b) => b.total - a.total);
+}
+
 export function byMonth(txs: Tx[]) {
   const map = new Map<string, { month: string; spending: number; income: number }>();
   for (const t of txs) {

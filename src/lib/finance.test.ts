@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { computeSpending, computeIncome, spendingByCategory, type Tx } from "./finance";
+import {
+  computeSpending,
+  computeIncome,
+  spendingByCategory,
+  incomeByCategory,
+  investmentsByDestination,
+  type Tx,
+} from "./finance";
 
 const tx = (p: Partial<Tx>): Tx => ({
   id: Math.random().toString(),
@@ -46,6 +53,40 @@ describe("правила за отчетите", () => {
       { category: "Храна", total: 20 },
       { category: "Инвестиции", total: 0 },
     ]);
+  });
+  it("категория с приход получава дял в диаграмата за доходи", () => {
+    const rows = incomeByCategory([
+      tx({ kind: "income", category: "Заплата", amount: 2000 }),
+      tx({ kind: "income", category: "Наем", amount: 500 }),
+    ]);
+    expect(rows).toEqual([
+      { category: "Заплата", total: 2000 },
+      { category: "Наем", total: 500 },
+    ]);
+  });
+  it("инвестициите се групират по закупения актив, а не само по Revolut", () => {
+    const rows = investmentsByDestination([
+      tx({ merchant: "Revolut", description: "Purchase of BTC", category: "Инвестиции", amount: -100 }),
+      tx({ merchant: "Revolut", description: "purchase of btc", category: "Инвестиции", amount: -50 }),
+      tx({ merchant: "Revolut", description: "Purchase of ETH", category: "Инвестиции", amount: -30 }),
+    ]);
+    expect(rows).toEqual([
+      { destination: "BTC", total: 150 },
+      { destination: "ETH", total: 30 },
+    ]);
+  });
+  it("възстановената инвестиция намалява сумата за съответния актив", () => {
+    const rows = investmentsByDestination([
+      tx({ merchant: "Revolut", description: "Purchase of BTC", category: "Инвестиции", amount: -100 }),
+      tx({ merchant: "Revolut", description: "Purchase of BTC", category: "Инвестиции", kind: "refund", amount: 20 }),
+    ]);
+    expect(rows).toEqual([{ destination: "BTC", total: 80 }]);
+  });
+  it("вътрешен превод в инвестиционна категория не се брои като инвестиция", () => {
+    const rows = investmentsByDestination([
+      tx({ merchant: "Собствена сметка", category: "Инвестиции", kind: "transfer", amount: -500 }),
+    ]);
+    expect(rows).toEqual([]);
   });
 });
 

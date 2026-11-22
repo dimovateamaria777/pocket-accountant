@@ -16,6 +16,9 @@ import {
   computeIncome,
   computeSpending,
   eur,
+  incomeByCategory,
+  investmentsByDestination,
+  isInvestmentCategory,
   spendingByCategory,
   topMerchants,
   type Tx,
@@ -30,6 +33,8 @@ const COLORS = [
   "var(--muted-foreground)",
 ];
 
+type BreakdownRow = { label: string; total: number };
+
 export function Overview({
   txs,
   customCategories = [],
@@ -38,9 +43,20 @@ export function Overview({
   customCategories?: string[];
 }) {
   const months = useMemo(() => byMonth(txs), [txs]);
-  const cats = useMemo(
-    () => spendingByCategory(txs, {}, customCategories),
+  const expenseRows = useMemo<BreakdownRow[]>(
+    () =>
+      spendingByCategory(txs, {}, customCategories)
+        .filter((row) => !isInvestmentCategory(row.category))
+        .map((row) => ({ label: row.category, total: row.total })),
     [txs, customCategories],
+  );
+  const incomeRows = useMemo<BreakdownRow[]>(
+    () => incomeByCategory(txs).map((row) => ({ label: row.category, total: row.total })),
+    [txs],
+  );
+  const investmentRows = useMemo<BreakdownRow[]>(
+    () => investmentsByDestination(txs).map((row) => ({ label: row.destination, total: row.total })),
+    [txs],
   );
   const merchants = useMemo(() => topMerchants(txs), [txs]);
   const spend = computeSpending(txs).total;
@@ -58,58 +74,36 @@ export function Overview({
           hint={`${transfers} вътрешни превода не са броени`}
         />
       </div>
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card title="За какво харчите">
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                data={cats}
-                dataKey="total"
-                nameKey="category"
-                innerRadius={60}
-                outerRadius={110}
-                paddingAngle={2}
-              >
-                {cats.map((_, i) => (
-                  <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip formatter={(v: number) => eur(v)} />
-            </PieChart>
-          </ResponsiveContainer>
-          <ul className="mt-2 space-y-1 text-sm" aria-label="Категории в диаграмата">
-            {cats.map((c, i) => (
-              <li key={c.category} className="flex justify-between">
-                <span className="flex items-center gap-2">
-                  <span
-                    className="h-3 w-3 rounded-full"
-                    style={{ background: COLORS[i % COLORS.length] }}
-                  />
-                  {c.category}
-                </span>
-                <span className="font-semibold">{eur(c.total)}</span>
-              </li>
-            ))}
-          </ul>
-          {cats.some((category) => category.total === 0) && (
-            <p className="mt-3 text-xs text-muted-foreground">
-              Категориите с 0 € получават дял след първия разход в тях.
-            </p>
-          )}
-        </Card>
-        <Card title="По месеци">
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={months}>
-              <XAxis dataKey="month" fontSize={12} />
-              <YAxis fontSize={12} />
-              <Tooltip formatter={(v: number) => eur(v)} />
-              <Legend />
-              <Bar dataKey="spending" name="Разходи" fill="var(--chart-2)" radius={[6, 6, 0, 0]} />
-              <Bar dataKey="income" name="Доходи" fill="var(--chart-1)" radius={[6, 6, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </Card>
+      <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-3">
+        <BreakdownCard
+          title="Разходи по категории"
+          rows={expenseRows}
+          emptyText="Все още няма разходи за показване."
+          showZeroHint
+        />
+        <BreakdownCard
+          title="Доходи по категории"
+          rows={incomeRows}
+          emptyText="Все още няма доходи за показване."
+        />
+        <BreakdownCard
+          title="Къде инвестирате"
+          rows={investmentRows}
+          emptyText="Добавете транзакция в категория „Инвестиции“, за да видите къде сте инвестирали."
+        />
       </div>
+      <Card title="По месеци">
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart data={months}>
+            <XAxis dataKey="month" fontSize={12} />
+            <YAxis fontSize={12} />
+            <Tooltip formatter={(v: number) => eur(v)} />
+            <Legend />
+            <Bar dataKey="spending" name="Разходи" fill="var(--chart-2)" radius={[6, 6, 0, 0]} />
+            <Bar dataKey="income" name="Доходи" fill="var(--chart-1)" radius={[6, 6, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </Card>
       <Card title="Къде харчите най-много">
         <ul className="divide-y">
           {merchants.map((m) => (
@@ -121,6 +115,70 @@ export function Overview({
         </ul>
       </Card>
     </div>
+  );
+}
+
+function BreakdownCard({
+  title,
+  rows,
+  emptyText,
+  showZeroHint = false,
+}: {
+  title: string;
+  rows: BreakdownRow[];
+  emptyText: string;
+  showZeroHint?: boolean;
+}) {
+  const hasValues = rows.some((row) => row.total > 0);
+  return (
+    <Card title={title}>
+      <div className="h-[260px]">
+        {hasValues ? (
+          <ResponsiveContainer width="100%" height={260}>
+            <PieChart>
+              <Pie
+                data={rows}
+                dataKey="total"
+                nameKey="label"
+                innerRadius={55}
+                outerRadius={100}
+                paddingAngle={2}
+              >
+                {rows.map((row, i) => (
+                  <Cell key={row.label} fill={COLORS[i % COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip formatter={(v: number) => eur(v)} />
+            </PieChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="flex h-full items-center justify-center px-5 text-center text-sm text-muted-foreground">
+            {emptyText}
+          </div>
+        )}
+      </div>
+      {rows.length > 0 && (
+        <ul className="mt-2 space-y-1 text-sm" aria-label={`${title} – стойности`}>
+          {rows.map((row, i) => (
+            <li key={row.label} className="flex justify-between gap-3">
+              <span className="flex items-center gap-2">
+                <span
+                  className="h-3 w-3 shrink-0 rounded-full"
+                  style={{ background: COLORS[i % COLORS.length] }}
+                />
+                {row.label}
+              </span>
+              <span className="font-semibold">{eur(row.total)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {showZeroHint && rows.some((row) => row.total === 0) && (
+        <p className="mt-3 text-xs text-muted-foreground">
+          Категориите с 0 € получават дял след първата транзакция в тях.
+        </p>
+      )}
+    </Card>
   );
 }
 
