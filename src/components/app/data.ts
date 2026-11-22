@@ -1,6 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tx } from "@/lib/finance";
+import { fetchTxSummary } from "@/lib/summary";
 
 export const txQuery = queryOptions({
   queryKey: ["transactions"],
@@ -13,4 +14,9 @@ export const txQuery = queryOptions({
     if (error) throw error;
     return (data ?? []).map((t) => ({ ...t, amount: Number(t.amount), kind: t.kind as Tx["kind"] }));
   },
+});
+
+export const summaryQuery = queryOptions({
+  queryKey: ["transactions", "summary"],
+  queryFn: () => fetchTxSummary(supabase),
 });

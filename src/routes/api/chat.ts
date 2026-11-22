@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { streamText, tool, convertToModelMessages, isStepCount, type UIMessage } from "ai";
 import { z } from "zod";
-import { computeSpending, computeIncome, spendingByCategory, ruleMatches, CATEGORIES, type Tx } from "@/lib/finance";
+import { ruleMatches, CATEGORIES, type Tx } from "@/lib/finance";
+import { fetchTxSummary } from "@/lib/summary";
 import { MODEL, createProvider, reasoningOptions, userClientFromRequest, aiErrorResponse } from "@/lib/ai.server";
 
 const filter = z.object({
@@ -20,14 +21,21 @@ export const Route = createFileRoute("/api/chat")({
         const { messages } = (await request.json()) as { messages: UIMessage[] };
 
         // Read-only: the assistant only ever selects rows. It has no tool that writes or deletes.
-        const { data, error } = await auth.supabase
-          .from("transactions")
-          .select("id, tx_date, description, merchant, amount, kind, category")
-          .order("tx_date", { ascending: true })
-          .limit(10000);
-        if (error) return Response.json({ error: error.message }, { status: 500 });
-        const txs: Tx[] = (data ?? []).map((t) => ({ ...t, amount: Number(t.amount), kind: t.kind as Tx["kind"] }));
-        const range = txs.length ? `${txs[0]!.tx_date} до ${txs[txs.length - 1]!.tx_date}` : "няма данни";
+        // Rule previews need rows; read them page by page so nothing is cut at the API row cap.
+        const txs: Tx[] = [];
+        for (let from = 0; from < 50_000; from += 1000) {
+          const { data, error } = await auth.supabase
+            .from("transactions")
+            .select("id, tx_date, description, merchant, amount, kind, category")
+            .order("tx_date", { ascending: true })
+            .order("id", { ascending: true })
+            .range(from, from + 999);
+          if (error) return Response.json({ error: error.message }, { status: 500 });
+          txs.push(...(data ?? []).map((t) => ({ ...t, amount: Number(t.amount), kind: t.kind as Tx["kind"] })));
+          if ((data ?? []).length < 1000) break;
+        }
+        const all = await fetchTxSummary(auth.supabase).catch(() => null);
+        const range = all?.first_date ? `${all.first_date} до ${all.last_date}` : "няма данни";
 
         const { data: custom } = await auth.supabase.from("custom_categories").select("name");
         const allCats = [...CATEGORIES, ...(custom ?? []).map((c) => c.name)];
@@ -68,22 +76,22 @@ export const Route = createFileRoute("/api/chat")({
             description: "Точна сума на разходите (без вътрешни преводи, с приспаднати възстановени суми) по филтри.",
             inputSchema: filter,
             execute: async (f) => {
-              const r = computeSpending(txs, f);
-              return { total_eur: r.total, count: r.count, sample: r.items.slice(-15).map((t) => ({ date: t.tx_date, merchant: t.merchant, amount: t.amount, kind: t.kind })) };
+              const r = await fetchTxSummary(auth.supabase, f);
+              return { total_eur: r.spending_total, count: r.spending_count, sample: r.sample };
             },
           }),
           income: tool({
             description: "Точна сума на доходите по филтри.",
             inputSchema: filter,
             execute: async (f) => {
-              const r = computeIncome(txs, f);
-              return { total_eur: r.total, count: r.count };
+              const r = await fetchTxSummary(auth.supabase, f);
+              return { total_eur: r.income_total, count: r.income_count };
             },
           }),
           by_category: tool({
             description: "Разходи по категории за период.",
             inputSchema: z.object({ from: z.string().nullable(), to: z.string().nullable() }),
-            execute: async (f) => spendingByCategory(txs, f),
+            execute: async (f) => (await fetchTxSummary(auth.supabase, f)).by_category,
           }),
         };
 

@@ -48,8 +48,21 @@ const fileSchema = z
   })
   .refine((body) => body.text || body.base64, { message: "Липсва файл." });
 
+const DUPLICATE = "Това извлечение вече е качено.";
+
+/** Fingerprint of the original file content (never the name), so renamed copies are caught. */
+async function fileFingerprint(body: { text?: string | undefined; base64?: string | undefined }) {
+  const bytes = body.base64
+    ? Uint8Array.from(atob(body.base64), (c) => c.charCodeAt(0))
+    : new TextEncoder().encode(body.text ?? "");
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 const saveSchema = z.object({
   mode: z.literal("save"),
+  text: z.string().max(200_000).optional(),
+  base64: z.string().max(15_000_000).optional(),
   fileName: z.string().min(1).max(300),
   source: z.string().min(1).max(100),
   transactions: z.array(importTransactionSchema).min(1).max(5000),
@@ -82,25 +95,10 @@ export const Route = createFileRoute("/api/import")({
           if (!parsedBody.success)
             return Response.json({ error: "Данните за запис са невалидни." }, { status: 400 });
           const body = parsedBody.data;
-          const { data: statement, error: statementError } = await auth.supabase
-            .from("statements")
-            .insert({
-              user_id: auth.userId,
-              file_name: body.fileName,
-              source: body.source,
-              tx_count: body.transactions.length,
-            })
-            .select("id")
-            .single();
-          if (statementError || !statement)
-            return Response.json(
-              { error: statementError?.message ?? "Грешка при запис" },
-              { status: 500 },
-            );
-
+          if (!body.text && !body.base64)
+            return Response.json({ error: "Липсва файл." }, { status: 400 });
+          const fileHash = await fileFingerprint(body);
           const rows = body.transactions.map((t) => ({
-            user_id: auth.userId,
-            statement_id: statement.id,
             tx_date: t.date,
             description: t.description,
             merchant: t.merchant,
@@ -110,10 +108,16 @@ export const Route = createFileRoute("/api/import")({
             kind: t.kind,
             category: t.category,
           }));
-          const { error } = await auth.supabase.from("transactions").insert(rows);
+          const { error } = await auth.supabase.rpc("save_statement_import", {
+            p_file_name: body.fileName,
+            p_source: body.source,
+            p_file_hash: fileHash,
+            p_rows: rows,
+          });
           if (error) {
-            await auth.supabase.from("statements").delete().eq("id", statement.id);
-            return Response.json({ error: error.message }, { status: 500 });
+            if (error.message.includes("duplicate_statement"))
+              return Response.json({ error: DUPLICATE, duplicate: true }, { status: 409 });
+            return Response.json({ error: "Грешка при запис. Опитайте отново." }, { status: 500 });
           }
           return Response.json({ count: rows.length, source: body.source });
         }
@@ -122,6 +126,14 @@ export const Route = createFileRoute("/api/import")({
         if (!parsedBody.success)
           return Response.json({ error: "Липсва валиден PDF или CSV файл." }, { status: 400 });
         const body = parsedBody.data;
+        const previewHash = await fileFingerprint(body);
+        const { data: existing } = await auth.supabase
+          .from("statements")
+          .select("id")
+          .eq("file_hash", previewHash)
+          .limit(1);
+        if (existing?.length)
+          return Response.json({ error: DUPLICATE, duplicate: true }, { status: 409 });
         const content = body.base64
           ? [
               { type: "text" as const, text: `Файл: ${body.fileName}` },

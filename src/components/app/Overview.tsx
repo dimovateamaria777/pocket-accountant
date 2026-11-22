@@ -11,18 +11,9 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
-import {
-  byMonth,
-  computeIncome,
-  computeSpending,
-  eur,
-  incomeBySource,
-  investmentsByDestination,
-  isInvestmentCategory,
-  spendingByCategory,
-  topMerchants,
-  type Tx,
-} from "@/lib/finance";
+import { useQuery } from "@tanstack/react-query";
+import { eur, isInvestmentCategory } from "@/lib/finance";
+import { summaryQuery } from "./data";
 
 const COLORS = [
   "var(--chart-1)",
@@ -35,34 +26,28 @@ const COLORS = [
 
 type BreakdownRow = { label: string; total: number };
 
-export function Overview({
-  txs,
-  customCategories = [],
-}: {
-  txs: Tx[];
-  customCategories?: string[];
-}) {
-  const months = useMemo(() => byMonth(txs), [txs]);
-  const expenseRows = useMemo<BreakdownRow[]>(
-    () =>
-      spendingByCategory(txs, {}, customCategories)
-        .filter((row) => !isInvestmentCategory(row.category))
-        .map((row) => ({ label: row.category, total: row.total })),
-    [txs, customCategories],
-  );
-  const incomeRows = useMemo<BreakdownRow[]>(
-    () => incomeBySource(txs).map((row) => ({ label: row.source, total: row.total })),
-    [txs],
-  );
-  const investmentRows = useMemo<BreakdownRow[]>(
-    () =>
-      investmentsByDestination(txs).map((row) => ({ label: row.destination, total: row.total })),
-    [txs],
-  );
-  const merchants = useMemo(() => topMerchants(txs), [txs]);
-  const spend = computeSpending(txs).total;
-  const income = computeIncome(txs).total;
-  const transfers = txs.filter((t) => t.kind === "transfer").length;
+export function Overview({ customCategories = [] }: { customCategories?: string[] }) {
+  const { data: summary } = useQuery(summaryQuery);
+  const months = summary?.by_month ?? [];
+  const expenseRows = useMemo<BreakdownRow[]>(() => {
+    const rows = (summary?.by_category ?? [])
+      .filter((row) => !isInvestmentCategory(row.category))
+      .map((row) => ({ label: row.category, total: row.total }));
+    const shown = new Set(rows.map((r) => r.label.toLocaleLowerCase("bg-BG")));
+    for (const c of customCategories) {
+      const k = c.toLocaleLowerCase("bg-BG");
+      if (shown.has(k) || isInvestmentCategory(c)) continue;
+      rows.push({ label: c, total: 0 });
+      shown.add(k);
+    }
+    return rows;
+  }, [summary, customCategories]);
+  const incomeRows = (summary?.income_by_source ?? []).map((r) => ({ label: r.source, total: r.total }));
+  const investmentRows = (summary?.investments ?? []).map((r) => ({ label: r.destination, total: r.total }));
+  const merchants = summary?.top_merchants ?? [];
+  const spend = summary?.spending_total ?? 0;
+  const income = summary?.income_total ?? 0;
+  const transfers = summary?.transfer_count ?? 0;
 
   return (
     <div className="space-y-6">

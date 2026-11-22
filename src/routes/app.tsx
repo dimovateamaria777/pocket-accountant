@@ -117,7 +117,7 @@ function AppPage() {
           <TabsList className="mb-6 flex-wrap">
             <TabsTrigger value="overview">Табло</TabsTrigger>
             <TabsTrigger value="tx">Транзакции</TabsTrigger>
-            <TabsTrigger value="upload">Качи извлечение</TabsTrigger>
+            <TabsTrigger value="upload">Моите извлечения</TabsTrigger>
             <TabsTrigger value="banking">Свържи банка</TabsTrigger>
             <TabsTrigger value="settings">Настройки</TabsTrigger>
           </TabsList>
@@ -196,7 +196,7 @@ function Data({
   return (
     <>
       <TabsContent value="overview">
-        {empty ? Empty : <Overview txs={txs} customCategories={customCategories} />}
+        {empty ? Empty : <Overview customCategories={customCategories} />}
       </TabsContent>
       <TabsContent value="tx">
         {empty ? Empty : <Transactions txs={txs} view={txView} onViewChange={onTxViewChange} />}

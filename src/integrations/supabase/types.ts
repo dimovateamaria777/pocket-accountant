@@ -193,6 +193,7 @@ export type Database = {
       statements: {
         Row: {
           created_at: string
+          file_hash: string | null
           file_name: string
           id: string
           source: string | null
@@ -201,6 +202,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          file_hash?: string | null
           file_name: string
           id?: string
           source?: string | null
@@ -209,6 +211,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          file_hash?: string | null
           file_name?: string
           id?: string
           source?: string | null
@@ -294,7 +297,24 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      save_statement_import: {
+        Args: {
+          p_file_hash: string
+          p_file_name: string
+          p_rows: Json
+          p_source: string
+        }
+        Returns: Json
+      }
+      tx_summary: {
+        Args: {
+          p_category?: string
+          p_from?: string
+          p_merchant?: string
+          p_to?: string
+        }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never
