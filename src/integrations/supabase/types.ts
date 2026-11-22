@@ -131,6 +131,39 @@ export type Database = {
         }
         Relationships: []
       }
+      import_previews: {
+        Row: {
+          created_at: string
+          expires_at: string
+          file_hash: string
+          file_name: string
+          id: string
+          rows: Json
+          source: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string
+          file_hash: string
+          file_name: string
+          id?: string
+          rows: Json
+          source: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          file_hash?: string
+          file_name?: string
+          id?: string
+          rows?: Json
+          source?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       infopay_credentials: {
         Row: {
           connection_id: string
@@ -297,6 +330,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      cancel_import_preview: {
+        Args: { p_preview_id: string }
+        Returns: undefined
+      }
+      commit_import_preview: {
+        Args: { p_corrections: Json; p_preview_id: string }
+        Returns: Json
+      }
       save_statement_import: {
         Args: {
           p_file_hash: string
@@ -306,11 +347,65 @@ export type Database = {
         }
         Returns: Json
       }
+      tx_filtered: {
+        Args: {
+          p_category: string
+          p_from: string
+          p_hidden: string[]
+          p_kinds: string[]
+          p_merchant: string
+          p_search: string
+          p_to: string
+        }
+        Returns: {
+          amount: number
+          bank_account_id: string | null
+          bank_connection_id: string | null
+          category: string
+          created_at: string
+          currency: string
+          description: string
+          external_id: string | null
+          id: string
+          kind: string
+          merchant: string
+          original_amount: number | null
+          original_currency: string | null
+          statement_id: string | null
+          tx_date: string
+          user_id: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "transactions"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      tx_page: {
+        Args: {
+          p_category?: string
+          p_dir?: string
+          p_from?: string
+          p_hidden?: string[]
+          p_kinds?: string[]
+          p_limit?: number
+          p_merchant?: string
+          p_offset?: number
+          p_search?: string
+          p_sort?: string
+          p_to?: string
+        }
+        Returns: Json
+      }
       tx_summary: {
         Args: {
           p_category?: string
           p_from?: string
+          p_hidden?: string[]
+          p_kinds?: string[]
           p_merchant?: string
+          p_search?: string
           p_to?: string
         }
         Returns: Json
