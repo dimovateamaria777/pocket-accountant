@@ -11,6 +11,7 @@ import { Transactions } from "@/components/app/Transactions";
 import { Upload } from "@/components/app/Upload";
 import { Chat } from "@/components/app/Chat";
 import { CategoryManager } from "@/components/app/CategoryManager";
+import { categoriesQuery } from "@/components/app/categories";
 import { BankConnections } from "@/components/app/BankConnections";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -60,7 +61,10 @@ function AppPage() {
       : "overview",
   );
   const [chatOpen, setChatOpen] = useState(false);
-  const [txView, setTxView] = useState<TransactionView>({ ...DEFAULT_TRANSACTION_VIEW, hiddenCategories: [] });
+  const [txView, setTxView] = useState<TransactionView>({
+    ...DEFAULT_TRANSACTION_VIEW,
+    hiddenCategories: [],
+  });
 
   const applyAssistantView = useCallback((patch: TransactionViewPatch) => {
     setTxView((current) => applyTransactionViewPatch(current, patch));
@@ -167,7 +171,9 @@ function Data({
   onTxViewChange: (view: TransactionView) => void;
 }) {
   const { data: txs = [], isLoading } = useQuery(txQuery);
-  const empty = !isLoading && txs.length === 0;
+  const { data: categoryData } = useQuery(categoriesQuery);
+  const customCategories = categoryData?.custom.map((category) => category.name) ?? [];
+  const empty = !isLoading && txs.length === 0 && customCategories.length === 0;
   const Empty = (
     <div className="rounded-2xl border bg-card p-10 text-center">
       <p className="font-display text-2xl font-bold">Още няма данни</p>
@@ -181,7 +187,9 @@ function Data({
   );
   return (
     <>
-      <TabsContent value="overview">{empty ? Empty : <Overview txs={txs} />}</TabsContent>
+      <TabsContent value="overview">
+        {empty ? Empty : <Overview txs={txs} customCategories={customCategories} />}
+      </TabsContent>
       <TabsContent value="tx">
         {empty ? Empty : <Transactions txs={txs} view={txView} onViewChange={onTxViewChange} />}
       </TabsContent>

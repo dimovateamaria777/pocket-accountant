@@ -1,12 +1,47 @@
 import { useMemo } from "react";
-import { Pie, PieChart, Cell, Bar, BarChart, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
-import { byMonth, computeIncome, computeSpending, eur, spendingByCategory, topMerchants, type Tx } from "@/lib/finance";
+import {
+  Pie,
+  PieChart,
+  Cell,
+  Bar,
+  BarChart,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+} from "recharts";
+import {
+  byMonth,
+  computeIncome,
+  computeSpending,
+  eur,
+  spendingByCategory,
+  topMerchants,
+  type Tx,
+} from "@/lib/finance";
 
-const COLORS = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)", "var(--muted-foreground)"];
+const COLORS = [
+  "var(--chart-1)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
+  "var(--chart-5)",
+  "var(--muted-foreground)",
+];
 
-export function Overview({ txs }: { txs: Tx[] }) {
+export function Overview({
+  txs,
+  customCategories = [],
+}: {
+  txs: Tx[];
+  customCategories?: string[];
+}) {
   const months = useMemo(() => byMonth(txs), [txs]);
-  const cats = useMemo(() => spendingByCategory(txs), [txs]);
+  const cats = useMemo(
+    () => spendingByCategory(txs, {}, customCategories),
+    [txs, customCategories],
+  );
   const merchants = useMemo(() => topMerchants(txs), [txs]);
   const spend = computeSpending(txs).total;
   const income = computeIncome(txs).total;
@@ -17,26 +52,50 @@ export function Overview({ txs }: { txs: Tx[] }) {
       <div className="grid gap-4 md:grid-cols-3">
         <Stat label="Похарчени" value={eur(spend)} />
         <Stat label="Получени" value={eur(income)} />
-        <Stat label="Остават" value={eur(income - spend)} hint={`${transfers} вътрешни превода не са броени`} />
+        <Stat
+          label="Остават"
+          value={eur(income - spend)}
+          hint={`${transfers} вътрешни превода не са броени`}
+        />
       </div>
       <div className="grid gap-6 lg:grid-cols-2">
         <Card title="За какво харчите">
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
-              <Pie data={cats} dataKey="total" nameKey="category" innerRadius={60} outerRadius={110} paddingAngle={2}>
-                {cats.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+              <Pie
+                data={cats}
+                dataKey="total"
+                nameKey="category"
+                innerRadius={60}
+                outerRadius={110}
+                paddingAngle={2}
+              >
+                {cats.map((_, i) => (
+                  <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                ))}
               </Pie>
               <Tooltip formatter={(v: number) => eur(v)} />
             </PieChart>
           </ResponsiveContainer>
-          <ul className="mt-2 space-y-1 text-sm">
+          <ul className="mt-2 space-y-1 text-sm" aria-label="Категории в диаграмата">
             {cats.map((c, i) => (
               <li key={c.category} className="flex justify-between">
-                <span className="flex items-center gap-2"><span className="h-3 w-3 rounded-full" style={{ background: COLORS[i % COLORS.length] }} />{c.category}</span>
+                <span className="flex items-center gap-2">
+                  <span
+                    className="h-3 w-3 rounded-full"
+                    style={{ background: COLORS[i % COLORS.length] }}
+                  />
+                  {c.category}
+                </span>
                 <span className="font-semibold">{eur(c.total)}</span>
               </li>
             ))}
           </ul>
+          {cats.some((category) => category.total === 0) && (
+            <p className="mt-3 text-xs text-muted-foreground">
+              Категориите с 0 € получават дял след първия разход в тях.
+            </p>
+          )}
         </Card>
         <Card title="По месеци">
           <ResponsiveContainer width="100%" height={300}>
@@ -54,7 +113,10 @@ export function Overview({ txs }: { txs: Tx[] }) {
       <Card title="Къде харчите най-много">
         <ul className="divide-y">
           {merchants.map((m) => (
-            <li key={m.merchant} className="flex justify-between py-2 text-sm"><span>{m.merchant}</span><span className="font-semibold">{eur(m.total)}</span></li>
+            <li key={m.merchant} className="flex justify-between py-2 text-sm">
+              <span>{m.merchant}</span>
+              <span className="font-semibold">{eur(m.total)}</span>
+            </li>
           ))}
         </ul>
       </Card>

@@ -74,17 +74,29 @@ export function computeIncome(txs: Tx[], f: TxFilter = {}) {
   return { total: round2(total), count: items.length, items };
 }
 
-export function spendingByCategory(txs: Tx[], f: TxFilter = {}) {
+export function spendingByCategory(
+  txs: Tx[],
+  f: TxFilter = {},
+  emptyCategories: readonly string[] = [],
+) {
   const map = new Map<string, number>();
   for (const t of txs) {
     if (!matches(t, f)) continue;
     if (t.kind === "expense") map.set(t.category, (map.get(t.category) ?? 0) - t.amount);
     if (t.kind === "refund") map.set(t.category, (map.get(t.category) ?? 0) - Math.abs(t.amount));
   }
-  return [...map.entries()]
+  const rows = [...map.entries()]
     .map(([category, total]) => ({ category, total: round2(total) }))
     .filter((r) => r.total > 0)
     .sort((a, b) => b.total - a.total);
+  const shown = new Set(rows.map((row) => row.category.toLocaleLowerCase("bg-BG")));
+  for (const category of emptyCategories) {
+    const normalized = category.toLocaleLowerCase("bg-BG");
+    if (shown.has(normalized)) continue;
+    rows.push({ category, total: 0 });
+    shown.add(normalized);
+  }
+  return rows;
 }
 
 export function byMonth(txs: Tx[]) {

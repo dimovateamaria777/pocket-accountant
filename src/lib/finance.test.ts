@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeSpending, computeIncome, type Tx } from "./finance";
+import { computeSpending, computeIncome, spendingByCategory, type Tx } from "./finance";
 
 const tx = (p: Partial<Tx>): Tx => ({
   id: Math.random().toString(),
@@ -39,6 +39,13 @@ describe("правила за отчетите", () => {
       to: "2026-10-31",
     });
     expect(r.count).toBe(1);
+  });
+  it("нова собствена категория се показва в диаграмата с 0 €", () => {
+    const rows = spendingByCategory([tx({ amount: -20 })], {}, ["Инвестиции"]);
+    expect(rows).toEqual([
+      { category: "Храна", total: 20 },
+      { category: "Инвестиции", total: 0 },
+    ]);
   });
 });
 
