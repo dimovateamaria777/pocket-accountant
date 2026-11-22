@@ -83,9 +83,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Джоб – личен AI счетоводител" },
+      { title: "Personal Accountant – личен AI счетоводител" },
       { name: "description", content: "Качете банково извлечение и вижте ясно къде отиват парите ви." },
-      { property: "og:title", content: "Джоб – личен AI счетоводител" },
+      { property: "og:title", content: "Personal Accountant – личен AI счетоводител" },
       { property: "og:description", content: "Качете банково извлечение и вижте ясно къде отиват парите ви." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

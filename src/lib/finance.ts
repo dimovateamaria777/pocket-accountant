@@ -184,6 +184,11 @@ export function topMerchants(txs: Tx[], limit = 8) {
     .slice(0, limit);
 }
 
+export function sharePercent(value: number, total: number) {
+  if (total <= 0) return 0;
+  return Math.round((value / total) * 1000) / 10;
+}
+
 export const eur = (n: number) =>
   new Intl.NumberFormat("bg-BG", { style: "currency", currency: "EUR" }).format(n);
 

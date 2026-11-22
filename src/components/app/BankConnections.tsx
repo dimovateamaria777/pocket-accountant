@@ -176,7 +176,7 @@ export function BankConnections() {
           <div>
             <h2 className="font-display text-2xl font-bold">Друга банка чрез Enable Banking</h2>
             <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-              Разрешението се дава на сайта на банката чрез Enable Banking. Джоб получава само
+              Разрешението се дава на сайта на банката чрез Enable Banking. Personal Accountant получава само
               четене на сметки и плащания — без банкова парола и без право да нарежда плащания.
             </p>
           </div>
@@ -245,7 +245,7 @@ export function BankConnections() {
               </li>
               <li>
                 Изтеглете .pem файла с частния ключ. Ключът се пази само в защитените настройки на
-                Джоб и никога не се показва в браузъра.
+                Personal Accountant и никога не се показва в браузъра.
               </li>
               <li>
                 Добавете идентификатора на приложението и ключа в защитените настройки, след което

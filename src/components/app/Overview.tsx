@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   Pie,
   PieChart,
@@ -12,7 +12,9 @@ import {
   Legend,
 } from "recharts";
 import { useQuery } from "@tanstack/react-query";
-import { eur, isInvestmentCategory } from "@/lib/finance";
+import { ArrowLeft } from "lucide-react";
+import { eur, isInvestmentCategory, sharePercent } from "@/lib/finance";
+import { Button } from "@/components/ui/button";
 import { summaryQuery } from "./data";
 
 const COLORS = [
@@ -26,8 +28,13 @@ const COLORS = [
 
 type BreakdownRow = { label: string; total: number };
 
+function formatShare(value: number, total: number) {
+  return `${sharePercent(value, total).toLocaleString("bg-BG", { maximumFractionDigits: 1 })}%`;
+}
+
 export function Overview({ customCategories = [] }: { customCategories?: string[] }) {
   const { data: summary } = useQuery(summaryQuery);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const months = summary?.by_month ?? [];
   const expenseRows = useMemo<BreakdownRow[]>(() => {
     const rows = (summary?.by_category ?? [])
@@ -42,6 +49,13 @@ export function Overview({ customCategories = [] }: { customCategories?: string[
     }
     return rows;
   }, [summary, customCategories]);
+  const merchantRows = useMemo<BreakdownRow[]>(() => {
+    if (!selectedCategory) return [];
+    const key = selectedCategory.toLocaleLowerCase("bg-BG");
+    return (summary?.by_category_merchant ?? [])
+      .filter((row) => row.category.toLocaleLowerCase("bg-BG") === key)
+      .map((row) => ({ label: row.merchant, total: row.total }));
+  }, [summary, selectedCategory]);
   const incomeRows = (summary?.income_by_source ?? []).map((r) => ({ label: r.source, total: r.total }));
   const investmentRows = (summary?.investments ?? []).map((r) => ({ label: r.destination, total: r.total }));
   const merchants = summary?.top_merchants ?? [];
@@ -60,13 +74,31 @@ export function Overview({ customCategories = [] }: { customCategories?: string[
           hint={`${transfers} вътрешни превода не са броени`}
         />
       </div>
-      <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-3">
-        <BreakdownCard
-          title="Разходи по категории"
-          rows={expenseRows}
-          emptyText="Все още няма разходи за показване."
-          showZeroHint
-        />
+      <div className="grid items-start gap-6 lg:grid-cols-2 xl:grid-cols-3">
+        <div className="space-y-6">
+          <BreakdownCard
+            title={selectedCategory ? `${selectedCategory} по търговци` : "Разходи по категории"}
+            rows={selectedCategory ? merchantRows : expenseRows}
+            emptyText={
+              selectedCategory
+                ? "Няма разходи по търговци в тази категория за избрания период."
+                : "Все още няма разходи за показване."
+            }
+            showZeroHint={!selectedCategory}
+            onSelect={selectedCategory ? undefined : setSelectedCategory}
+            onBack={selectedCategory ? () => setSelectedCategory(null) : undefined}
+          />
+          <Card title="Къде харчите най-много">
+            <ul className="divide-y">
+              {merchants.map((m) => (
+                <li key={m.merchant} className="flex justify-between gap-3 py-2 text-sm">
+                  <span>{m.merchant}</span>
+                  <span className="font-semibold">{eur(m.total)}</span>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        </div>
         <BreakdownCard
           title="Откъде идват доходите"
           rows={incomeRows}
@@ -85,20 +117,10 @@ export function Overview({ customCategories = [] }: { customCategories?: string[
             <YAxis fontSize={12} />
             <Tooltip formatter={(v: number) => eur(v)} />
             <Legend />
-            <Bar dataKey="spending" name="Разходи" fill="var(--chart-2)" radius={[6, 6, 0, 0]} />
-            <Bar dataKey="income" name="Доходи" fill="var(--chart-1)" radius={[6, 6, 0, 0]} />
+            <Bar dataKey="spending" name="Разходи" fill="var(--chart-2)" stroke="none" radius={[6, 6, 0, 0]} />
+            <Bar dataKey="income" name="Доходи" fill="var(--chart-1)" stroke="none" radius={[6, 6, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
-      </Card>
-      <Card title="Къде харчите най-много">
-        <ul className="divide-y">
-          {merchants.map((m) => (
-            <li key={m.merchant} className="flex justify-between py-2 text-sm">
-              <span>{m.merchant}</span>
-              <span className="font-semibold">{eur(m.total)}</span>
-            </li>
-          ))}
-        </ul>
       </Card>
     </div>
   );
@@ -109,15 +131,26 @@ function BreakdownCard({
   rows,
   emptyText,
   showZeroHint = false,
+  onSelect,
+  onBack,
 }: {
   title: string;
   rows: BreakdownRow[];
   emptyText: string;
   showZeroHint?: boolean;
+  onSelect?: ((label: string) => void) | undefined;
+  onBack?: (() => void) | undefined;
 }) {
   const hasValues = rows.some((row) => row.total > 0);
+  const total = rows.reduce((sum, row) => sum + row.total, 0);
   return (
     <Card title={title}>
+      {onBack && (
+        <Button type="button" variant="ghost" size="sm" className="mb-3 -ml-2" onClick={onBack}>
+          <ArrowLeft />
+          Назад към всички категории
+        </Button>
+      )}
       <div className="h-[260px]">
         {hasValues ? (
           <ResponsiveContainer width="100%" height={260}>
@@ -128,13 +161,23 @@ function BreakdownCard({
                 nameKey="label"
                 innerRadius={55}
                 outerRadius={100}
-                paddingAngle={2}
+                paddingAngle={0}
+                stroke="none"
+                strokeWidth={0}
+                onClick={(data) => {
+                  const row = (data as { payload?: BreakdownRow } | undefined)?.payload;
+                  if (row && onSelect) onSelect(row.label);
+                }}
+                style={{ cursor: onSelect ? "pointer" : undefined }}
               >
                 {rows.map((row, i) => (
-                  <Cell key={row.label} fill={COLORS[i % COLORS.length]} />
+                  <Cell key={row.label} fill={COLORS[i % COLORS.length]} stroke="none" strokeWidth={0} />
                 ))}
               </Pie>
-              <Tooltip formatter={(v: number) => eur(v)} />
+              <Tooltip
+                cursor={false}
+                formatter={(v: number) => `${eur(v)} · ${formatShare(v, total)}`}
+              />
             </PieChart>
           </ResponsiveContainer>
         ) : (
@@ -146,15 +189,31 @@ function BreakdownCard({
       {rows.length > 0 && (
         <ul className="mt-2 space-y-1 text-sm" aria-label={`${title} – стойности`}>
           {rows.map((row, i) => (
-            <li key={row.label} className="flex justify-between gap-3">
-              <span className="flex items-center gap-2">
-                <span
-                  className="h-3 w-3 shrink-0 rounded-full"
-                  style={{ background: COLORS[i % COLORS.length] }}
-                />
-                {row.label}
+            <li key={row.label} className="flex items-center justify-between gap-3">
+              {onSelect && row.total > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => onSelect(row.label)}
+                  className="flex min-w-0 items-center gap-2 text-left underline-offset-4 hover:underline"
+                >
+                  <span
+                    className="h-3 w-3 shrink-0 rounded-full"
+                    style={{ background: COLORS[i % COLORS.length] }}
+                  />
+                  {row.label}
+                </button>
+              ) : (
+                <span className="flex min-w-0 items-center gap-2">
+                  <span
+                    className="h-3 w-3 shrink-0 rounded-full"
+                    style={{ background: COLORS[i % COLORS.length] }}
+                  />
+                  {row.label}
+                </span>
+              )}
+              <span className="shrink-0 font-semibold">
+                {formatShare(row.total, total)} · {eur(row.total)}
               </span>
-              <span className="font-semibold">{eur(row.total)}</span>
             </li>
           ))}
         </ul>

@@ -12,10 +12,10 @@ import { useAuth } from "@/hooks/use-auth";
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
-      { title: "Вход – Джоб" },
-      { name: "description", content: "Влезте или създайте профил в Джоб." },
-      { property: "og:title", content: "Вход – Джоб" },
-      { property: "og:description", content: "Влезте или създайте профил в Джоб." },
+      { title: "Вход – Personal Accountant" },
+      { name: "description", content: "Влезте или създайте профил в Personal Accountant." },
+      { property: "og:title", content: "Вход – Personal Accountant" },
+      { property: "og:description", content: "Влезте или създайте профил в Personal Accountant." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -63,7 +63,7 @@ function AuthPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm rounded-2xl border bg-card p-8">
-        <Link to="/" className="font-display text-2xl font-bold text-primary">Джоб</Link>
+        <Link to="/" className="font-display text-2xl font-bold text-primary">Personal Accountant</Link>
         <h1 className="mt-4 text-xl font-semibold">{mode === "in" ? "Вход" : "Нов профил"}</h1>
         <div className="mt-6 space-y-2">
           <Button type="button" variant="outline" className="w-full" onClick={() => oauth("google")}><GoogleG />Продължи с Google</Button>

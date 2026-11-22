@@ -6,6 +6,7 @@ import {
   incomeByCategory,
   incomeBySource,
   investmentsByDestination,
+  sharePercent,
   type Tx,
 } from "./finance";
 
@@ -125,6 +126,10 @@ describe("правила за отчетите", () => {
       tx({ merchant: "Собствена сметка", category: "Инвестиции", kind: "transfer", amount: -500 }),
     ]);
     expect(rows).toEqual([]);
+  });
+  it("60 € Lidl и 40 € Billa дават точно 60% и 40% от 100 € за храна", () => {
+    expect(sharePercent(60, 100)).toBe(60);
+    expect(sharePercent(40, 100)).toBe(40);
   });
 });
 

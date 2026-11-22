@@ -24,6 +24,7 @@ export interface TxSummary {
   first_date: string | null;
   last_date: string | null;
   by_category: { category: string; total: number }[];
+  by_category_merchant: { category: string; merchant: string; total: number }[];
   income_by_source: { source: string; total: number }[];
   investments: { destination: string; total: number }[];
   by_month: { month: string; spending: number; income: number }[];

@@ -38,7 +38,7 @@ export function InfoPayConnection() {
           <h2 className="font-display text-2xl font-bold">InfoPay от Борика</h2>
           <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
             Движенията по сметките с активно съгласие се четат автоматично, без качване на файл.
-            Джоб използва само права за достъп, баланси и движения — не и за преводи.
+            Personal Accountant използва само права за достъп, баланси и движения — не и за преводи.
           </p>
         </div>
       </div>

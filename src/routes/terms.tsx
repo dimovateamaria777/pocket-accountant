@@ -3,15 +3,15 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 export const Route = createFileRoute("/terms")({
   head: () => ({
     meta: [
-      { title: "Условия за ползване – Джоб" },
+      { title: "Условия за ползване – Personal Accountant" },
       {
         name: "description",
-        content: "Чернова на условията за ползване на личния AI счетоводител Джоб.",
+        content: "Чернова на условията за ползване на личния AI счетоводител Personal Accountant.",
       },
-      { property: "og:title", content: "Условия за ползване – Джоб" },
+      { property: "og:title", content: "Условия за ползване – Personal Accountant" },
       {
         property: "og:description",
-        content: "Правила за ползване на банковите справки и AI асистента в Джоб.",
+        content: "Правила за ползване на банковите справки и AI асистента в Personal Accountant.",
       },
       { property: "og:type", content: "article" },
       { name: "twitter:card", content: "summary" },
@@ -25,7 +25,7 @@ function Terms() {
     <div className="min-h-screen bg-background">
       <main className="mx-auto max-w-2xl px-6 py-16">
         <Link to="/" className="font-display text-2xl font-bold text-primary">
-          Джоб
+          Personal Accountant
         </Link>
         <h1 className="mt-8 font-display text-4xl font-bold">Условия за ползване</h1>
         <p className="mt-3 text-sm text-muted-foreground">Работна чернова · 22 ноември 2026 г.</p>
@@ -43,7 +43,7 @@ function Terms() {
           <section>
             <h2 className="font-display text-xl font-semibold">1. Приемане и предназначение</h2>
             <p className="mt-2 leading-relaxed text-muted-foreground">
-              Създавайки профил или ползвайки „Джоб“, приемате тези условия. Приложението е личен
+              Създавайки профил или ползвайки „Personal Accountant“, приемате тези условия. Приложението е личен
               помощник за преглед и категоризиране на дигитални банкови плащания; то не е банка,
               счетоводна кантора или доставчик на инвестиционни, данъчни или правни съвети.
             </p>
@@ -53,7 +53,7 @@ function Terms() {
             <h2 className="font-display text-xl font-semibold">2. Как работи услугата</h2>
             <p className="mt-2 leading-relaxed text-muted-foreground">
               Можете да качите PDF или CSV извлечение и да потвърдите импорта след преглед или да
-              разрешите четене на движения чрез Enable Banking или InfoPay. „Джоб“ показва справки,
+              разрешите четене на движения чрез Enable Banking или InfoPay. „Personal Accountant“ показва справки,
               категории и отговори на асистента. Сумите и броят се изчисляват от програмата върху
               записаните транзакции; AI помага за разпознаване, категоризиране и обяснения, но не
               преценява суми и не извършва плащания.
@@ -83,7 +83,7 @@ function Terms() {
             <h2 className="font-display text-xl font-semibold">5. Изтриване и прекратяване</h2>
             <p className="mt-2 leading-relaxed text-muted-foreground">
               Можете да спрете да ползвате услугата по всяко време и да изтриете данните си от
-              „Настройки“. Изтриването в „Джоб“ е окончателно. Ако искате да оттеглите и съгласието
+              „Настройки“. Изтриването в „Personal Accountant“ е окончателно. Ако искате да оттеглите и съгласието
               при банката или външния доставчик, направете го и при него. Повече за обработката на
               данни има в <Link to="/privacy" className="text-primary underline underline-offset-4">Политиката за поверителност</Link>.
             </p>

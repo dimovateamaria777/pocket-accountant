@@ -3,12 +3,12 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 export const Route = createFileRoute("/privacy")({
   head: () => ({
     meta: [
-      { title: "Поверителност – Джоб" },
-      { name: "description", content: "Как Джоб съхранява и защитава финансовите ви данни." },
-      { property: "og:title", content: "Поверителност – Джоб" },
+      { title: "Поверителност – Personal Accountant" },
+      { name: "description", content: "Как Personal Accountant съхранява и защитава финансовите ви данни." },
+      { property: "og:title", content: "Поверителност – Personal Accountant" },
       {
         property: "og:description",
-        content: "Как Джоб съхранява и защитава финансовите ви данни.",
+        content: "Как Personal Accountant съхранява и защитава финансовите ви данни.",
       },
       { property: "og:type", content: "article" },
       { name: "twitter:card", content: "summary" },
@@ -47,7 +47,7 @@ function Privacy() {
   return (
     <div className="mx-auto max-w-2xl px-6 py-16">
       <Link to="/" className="font-display text-2xl font-bold text-primary">
-        Джоб
+        Personal Accountant
       </Link>
       <h1 className="mt-8 font-display text-4xl font-bold">Политика за поверителност</h1>
       <div className="mt-8 space-y-6">

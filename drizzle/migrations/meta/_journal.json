@@ -57,6 +57,13 @@
       "when": 1795353996299,
       "tag": "0007_transactions_bank_entry_unique_full",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1795355920046,
+      "tag": "0008_category_merchant_breakdown",
+      "breakpoints": true
     }
   ]
 }

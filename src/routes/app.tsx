@@ -40,13 +40,13 @@ export const Route = createFileRoute("/app")({
   }),
   head: () => ({
     meta: [
-      { title: "Моите финанси – Джоб" },
+      { title: "Моите финанси – Personal Accountant" },
       {
         name: "description",
         content:
           "Табло с разходите по категории, доходите по източник и инвестициите по дестинации.",
       },
-      { property: "og:title", content: "Моите финанси – Джоб" },
+      { property: "og:title", content: "Моите финанси – Personal Accountant" },
       {
         property: "og:description",
         content:
@@ -103,7 +103,7 @@ function AppPage() {
     <div className="min-h-screen bg-background">
       <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
         <Link to="/" className="font-display text-2xl font-bold text-primary">
-          Джоб
+          Personal Accountant
         </Link>
         <div className="flex items-center gap-3 text-sm text-muted-foreground">
           <span className="hidden sm:inline">{user.email}</span>
