@@ -34,4 +34,5 @@ use the editor.
 ## Architecture
 
 - Enable Banking credentials and session exchange stay on the server; the public callback accepts only a valid, unexpired, single-use state so bank consent cannot be attached to another user.
+- InfoPay ERP credentials are AES-GCM encrypted in a service-role-only table; authenticated server functions verify ownership before privileged reads, and scheduled synchronization runs through the authenticated cron route.
 - Automatic bank imports deduplicate by user, bank account, and the bank's immutable entry reference so repeated synchronization does not double-count spending.

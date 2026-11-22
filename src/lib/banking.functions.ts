@@ -61,7 +61,7 @@ export const getBankConnections = createServerFn({ method: "GET" })
     const { data, error } = await context.supabase
       .from("bank_connections")
       .select(
-        "id, bank_name, bank_country, accounts, access_valid_until, last_synced_at, created_at",
+        "id, provider, bank_name, bank_country, accounts, access_valid_until, last_synced_at, created_at",
       )
       .order("created_at", { ascending: false });
     if (error) throw error;
@@ -300,10 +300,14 @@ export const disconnectBank = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { data: connection, error } = await context.supabase
       .from("bank_connections")
-      .select("id, session_id")
+      .select("id, session_id, provider")
       .eq("id", data.connectionId)
       .single();
     if (error || !connection) throw new Error("Банковата връзка не е намерена.");
+    if (connection.provider === "infopay") {
+      const { disconnectInfoPayConnection } = await import("@/lib/infopay.server");
+      return disconnectInfoPayConnection(connection.id, context.userId);
+    }
     await enableBankingRequest(`/sessions/${connection.session_id}`, { method: "DELETE" });
     const { error: deleteError } = await context.supabase
       .from("bank_connections")

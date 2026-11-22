@@ -16,6 +16,7 @@ import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as ApiImportRouteImport } from './routes/api/import'
 import { Route as ApiPublicBankingCallbackRouteImport } from './routes/api/public/banking/callback'
+import { Route as ApiPublicJobsInfopaySyncRouteImport } from './routes/api/public/jobs/infopay-sync'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -53,6 +54,12 @@ const ApiPublicBankingCallbackRoute =
     path: '/api/public/banking/callback',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicJobsInfopaySyncRoute =
+  ApiPublicJobsInfopaySyncRouteImport.update({
+    id: '/api/public/jobs/infopay-sync',
+    path: '/api/public/jobs/infopay-sync',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -62,6 +69,7 @@ export interface FileRoutesByFullPath {
   '/api/chat': typeof ApiChatRoute
   '/api/import': typeof ApiImportRoute
   '/api/public/banking/callback': typeof ApiPublicBankingCallbackRoute
+  '/api/public/jobs/infopay-sync': typeof ApiPublicJobsInfopaySyncRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -71,6 +79,7 @@ export interface FileRoutesByTo {
   '/api/chat': typeof ApiChatRoute
   '/api/import': typeof ApiImportRoute
   '/api/public/banking/callback': typeof ApiPublicBankingCallbackRoute
+  '/api/public/jobs/infopay-sync': typeof ApiPublicJobsInfopaySyncRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -81,6 +90,7 @@ export interface FileRoutesById {
   '/api/chat': typeof ApiChatRoute
   '/api/import': typeof ApiImportRoute
   '/api/public/banking/callback': typeof ApiPublicBankingCallbackRoute
+  '/api/public/jobs/infopay-sync': typeof ApiPublicJobsInfopaySyncRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -92,6 +102,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/import'
     | '/api/public/banking/callback'
+    | '/api/public/jobs/infopay-sync'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -101,6 +112,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/import'
     | '/api/public/banking/callback'
+    | '/api/public/jobs/infopay-sync'
   id:
     | '__root__'
     | '/'
@@ -110,6 +122,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/import'
     | '/api/public/banking/callback'
+    | '/api/public/jobs/infopay-sync'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -120,6 +133,7 @@ export interface RootRouteChildren {
   ApiChatRoute: typeof ApiChatRoute
   ApiImportRoute: typeof ApiImportRoute
   ApiPublicBankingCallbackRoute: typeof ApiPublicBankingCallbackRoute
+  ApiPublicJobsInfopaySyncRoute: typeof ApiPublicJobsInfopaySyncRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -173,6 +187,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicBankingCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/jobs/infopay-sync': {
+      id: '/api/public/jobs/infopay-sync'
+      path: '/api/public/jobs/infopay-sync'
+      fullPath: '/api/public/jobs/infopay-sync'
+      preLoaderRoute: typeof ApiPublicJobsInfopaySyncRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -184,6 +205,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiChatRoute: ApiChatRoute,
   ApiImportRoute: ApiImportRoute,
   ApiPublicBankingCallbackRoute: ApiPublicBankingCallbackRoute,
+  ApiPublicJobsInfopaySyncRoute: ApiPublicJobsInfopaySyncRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

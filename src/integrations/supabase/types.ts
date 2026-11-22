@@ -131,6 +131,38 @@ export type Database = {
         }
         Relationships: []
       }
+      infopay_credentials: {
+        Row: {
+          connection_id: string
+          created_at: string
+          credentials_ciphertext: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          connection_id: string
+          created_at?: string
+          credentials_ciphertext: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          connection_id?: string
+          created_at?: string
+          credentials_ciphertext?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "infopay_credentials_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: true
+            referencedRelation: "bank_connections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       merchant_rules: {
         Row: {
           category: string

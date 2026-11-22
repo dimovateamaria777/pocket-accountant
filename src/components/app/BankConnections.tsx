@@ -3,6 +3,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Building2, Landmark, Loader2, PlugZap, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { InfoPayConnection } from "@/components/app/InfoPayConnection";
+import { syncInfoPay } from "@/lib/infopay.functions";
 import {
   disconnectBank,
   getBankConnections,
@@ -49,6 +51,7 @@ export function BankConnections() {
   const fetchConnections = useServerFn(getBankConnections);
   const beginConnection = useServerFn(startBankConnection);
   const runSync = useServerFn(syncBankConnection);
+  const runInfoPaySync = useServerFn(syncInfoPay);
   const runDisconnect = useServerFn(disconnectBank);
 
   const banks = useQuery({
@@ -69,7 +72,11 @@ export function BankConnections() {
     async (connectionId: string, automatic = false) => {
       setSyncing(connectionId);
       try {
-        const result = await runSync({ data: { connectionId } });
+        const connection = connections.data?.find((item) => item.id === connectionId);
+        const result =
+          connection?.provider === "infopay"
+            ? await runInfoPaySync({ data: { connectionId } })
+            : await runSync({ data: { connectionId } });
         await Promise.all([
           qc.invalidateQueries({ queryKey: ["transactions"] }),
           qc.invalidateQueries({ queryKey: ["bank-connections"] }),
@@ -82,7 +89,7 @@ export function BankConnections() {
         setSyncing(null);
       }
     },
-    [qc, runSync],
+    [connections.data, qc, runInfoPaySync, runSync],
   );
 
   useEffect(() => {
@@ -135,11 +142,12 @@ export function BankConnections() {
 
   return (
     <div className="space-y-6">
+      <InfoPayConnection />
       <section className="rounded-2xl border bg-card p-6">
         <div className="flex items-start gap-3">
           <PlugZap className="mt-1 text-accent" />
           <div>
-            <h2 className="font-display text-2xl font-bold">Свържи банка</h2>
+            <h2 className="font-display text-2xl font-bold">Друга банка чрез Enable Banking</h2>
             <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
               Разрешението се дава на сайта на банката чрез Enable Banking. Джоб получава само
               четене на сметки и плащания — без банкова парола и без право да нарежда плащания.
@@ -243,8 +251,8 @@ export function BankConnections() {
       <section className="rounded-2xl border bg-card p-6">
         <h2 className="font-display text-xl font-bold">Свързани сметки</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Плащанията се опресняват автоматично при отваряне на този раздел и с бутона за
-          синхронизиране.
+          InfoPay се опреснява и веднъж часово. Всички връзки се синхронизират при отваряне на
+          раздела и с бутона за синхронизиране.
         </p>
         <div className="mt-4 space-y-3">
           {(connections.data ?? []).map((connection) => (
