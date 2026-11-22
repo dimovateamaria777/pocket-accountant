@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { TransactionViewPatch } from "@/lib/transaction-view";
 
+type AnswerList = { from: string | null; to: string | null; category: string | null; merchant: string | null; scope: "spending" | "income" };
 type Proposal = { pattern: string; category: string; is_new_category: boolean; matching_count: number };
 
 const SUGGESTIONS = [
@@ -80,6 +81,20 @@ export function Chat({
                       <ListFilter className="h-4 w-4 shrink-0 text-accent" />
                       {done ? "Изгледът в „Транзакции“ е обновен. Записите не са променени." : "Настройвам изгледа…"}
                     </div>
+                  );
+                }
+                if ((p.type === "tool-spending" || p.type === "tool-income") && "state" in p && p.state === "output-available") {
+                  const out = (p as unknown as { output: { count: number; list: AnswerList } }).output;
+                  return (
+                    <Button
+                      key={i}
+                      variant="outline"
+                      size="sm"
+                      className="my-2"
+                      onClick={() => onTransactionView({ set_filter: true, ...out.list })}
+                    >
+                      <ListFilter className="h-4 w-4" /> Покажи записите зад отговора ({out.count})
+                    </Button>
                   );
                 }
                 if (p.type.startsWith("tool-")) return <div key={i} className="my-1 text-xs text-muted-foreground">🧮 Пресмятам от записите…</div>;

@@ -87,7 +87,10 @@ export const startBankConnection = createServerFn({ method: "POST" })
     const expiresAt = new Date(Date.now() + 15 * 60_000);
     const validitySeconds = Math.min(data.maximumConsentValidity ?? 90 * 86_400, 90 * 86_400);
     const validUntil = new Date(Date.now() + validitySeconds * 1000).toISOString();
-    const callbackUrl = `${new URL(request.url).origin}/api/public/banking/callback`;
+    // Must equal a Redirect URL registered in the Enable Banking application.
+    const callbackUrl =
+      process.env["ENABLE_BANKING_REDIRECT_URL"] ??
+      `${new URL(request.url).origin}/api/public/banking/callback`;
     const result = await enableBankingRequest<{ url?: string }>("/auth", {
       method: "POST",
       body: {

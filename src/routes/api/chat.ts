@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { streamText, tool, convertToModelMessages, isStepCount, type UIMessage } from "ai";
 import { z } from "zod";
 import { ruleMatches, CATEGORIES, type Tx } from "@/lib/finance";
-import { fetchTxSummary } from "@/lib/summary";
+import { fetchTxSummary, SPENDING_KINDS } from "@/lib/summary";
 import { MODEL, createProvider, reasoningOptions, userClientFromRequest, aiErrorResponse } from "@/lib/ai.server";
 
 const filter = z.object({
@@ -76,16 +76,16 @@ export const Route = createFileRoute("/api/chat")({
             description: "Точна сума на разходите (без вътрешни преводи, с приспаднати възстановени суми) по филтри.",
             inputSchema: filter,
             execute: async (f) => {
-              const r = await fetchTxSummary(auth.supabase, f);
-              return { total_eur: r.spending_total, count: r.spending_count, sample: r.sample };
+              const r = await fetchTxSummary(auth.supabase, { ...f, kinds: SPENDING_KINDS });
+              return { total_eur: r.spending_total, count: r.spending_count, sample: r.sample, list: { ...f, scope: "spending" } };
             },
           }),
           income: tool({
             description: "Точна сума на доходите по филтри.",
             inputSchema: filter,
             execute: async (f) => {
-              const r = await fetchTxSummary(auth.supabase, f);
-              return { total_eur: r.income_total, count: r.income_count };
+              const r = await fetchTxSummary(auth.supabase, { ...f, kinds: ["income"] });
+              return { total_eur: r.income_total, count: r.income_count, list: { ...f, scope: "income" } };
             },
           }),
           by_category: tool({

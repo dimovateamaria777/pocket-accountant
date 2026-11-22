@@ -36,3 +36,5 @@ use the editor.
 - Enable Banking credentials and session exchange stay on the server; the public callback accepts only a valid, unexpired, single-use state so bank consent cannot be attached to another user.
 - InfoPay ERP credentials are AES-GCM encrypted in a service-role-only table; authenticated server functions verify ownership before privileged reads, and scheduled synchronization runs through the authenticated cron route.
 - Automatic bank imports deduplicate by user, bank account, and the bank's immutable entry reference so repeated synchronization does not double-count spending.
+- Statement imports: the server fingerprints the original file bytes (SHA-256) before AI, holds the recognised rows in a service-role-only preview, and saves only through a database function that applies whitelisted corrections atomically under a per-user unique fingerprint, so clients cannot inject rows or double-import.
+- Dashboard, assistant and payment list read totals and pages from shared database functions over one filter definition, so they always agree and are never cut by API row caps.

@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { streamText, Output } from "ai";
 import { z } from "zod";
-import { CATEGORIES, ruleMatches, kindForCategory, isWithdrawal } from "@/lib/finance";
-import { importTransactionSchema, type ImportPreview } from "@/lib/import";
+import { CATEGORIES, ruleMatches, kindForCategory, isWithdrawal, type Kind } from "@/lib/finance";
+import { DUPLICATE_STATEMENT, toEur, type ImportPreview, type PreviewRow } from "@/lib/import";
 import {
   MODEL,
   createProvider,
@@ -10,6 +10,8 @@ import {
   userClientFromRequest,
   aiErrorResponse,
 } from "@/lib/ai.server";
+
+const MAX_BYTES = 10 * 1024 * 1024;
 
 const aiSchema = z.object({
   source: z.string().min(1).max(100).describe("Банка или приложение, напр. Revolut, ДСК"),
@@ -22,60 +24,82 @@ const aiSchema = z.object({
           .string()
           .min(1)
           .max(300)
-          .describe(
-            "Разпознато име на търговеца/марката, напр. IKEA вместо ХАОС МАРКЕТ БЪЛГАРИЯ ЕООД",
-          ),
-        amount_eur: z
+          .describe("Разпознато име на търговеца/марката, напр. IKEA вместо ХАОС МАРКЕТ БЪЛГАРИЯ ЕООД"),
+        amount: z
           .number()
           .finite()
-          .describe("Сума в евро със знак: минус за излизащи пари, плюс за влизащи"),
-        original_amount: z.number().finite().nullable(),
-        original_currency: z.string().max(3).nullable(),
+          .describe("Сумата точно както е в извлечението, в нейната валута. Минус = излизащи пари, плюс = влизащи"),
+        currency: z.string().min(3).max(3).describe("Валутата на сумата, ISO код, напр. EUR, BGN, USD"),
+        booked_eur: z
+          .number()
+          .finite()
+          .nullable()
+          .describe("Сумата в евро САМО ако е изрично написана в извлечението. Иначе null. Никога не изчислявай и не оценявай."),
         kind: z.enum(["expense", "income", "transfer", "refund"]),
         category: z.string().min(1).max(100).describe("Една от позволените категории"),
       }),
     )
     .max(5000),
+  skipped: z
+    .array(
+      z.object({
+        description: z.string().max(500),
+        reason: z.string().max(300).describe("Защо редът не е включен, напр. блокирана сума, отказано плащане, нечетлив ред"),
+      }),
+    )
+    .max(500)
+    .describe("Редове, които приличат на плащания, но не са включени в transactions"),
 });
 
-const fileSchema = z
-  .object({
-    mode: z.literal("preview").optional(),
-    fileName: z.string().min(1).max(300),
-    mime: z.string().max(100),
-    text: z.string().max(200_000).optional(),
-    base64: z.string().max(15_000_000).optional(),
-  })
-  .refine((body) => body.text || body.base64, { message: "Липсва файл." });
+const saveSchema = z.object({
+  mode: z.literal("save"),
+  previewId: z.string().uuid(),
+  corrections: z
+    .array(
+      z
+        .object({
+          index: z.number().int().min(0),
+          category: z.string().min(1).max(100).optional(),
+          eur: z.number().finite().min(-100_000_000).max(100_000_000).optional(),
+          exclude: z.boolean().optional(),
+        })
+        .strict(),
+    )
+    .max(5000),
+}).strict();
 
-const DUPLICATE = "Това извлечение вече е качено.";
+const cancelSchema = z.object({ mode: z.literal("cancel"), previewId: z.string().uuid() }).strict();
 
-/** Fingerprint of the original file content (never the name), so renamed copies are caught. */
-async function fileFingerprint(body: { text?: string | undefined; base64?: string | undefined }) {
-  const bytes = body.base64
-    ? Uint8Array.from(atob(body.base64), (c) => c.charCodeAt(0))
-    : new TextEncoder().encode(body.text ?? "");
+const INSTRUCTIONS = `Ти си счетоводител. Извлечи ВСИЧКИ транзакции от банковото извлечение. Не измисляй транзакции.
+Правила:
+- amount и currency: сумата и валутата точно както са в извлечението. НЕ преобразувай валути.
+- booked_eur: попълни само ако извлечението изрично показва сумата в евро (напр. осчетоводена сума при плащане в чужда валута). Иначе null.
+- kind="transfer" и category="Вътрешен превод": преводи между собствени сметки на притежателя (Top-up, захранване, превод към себе си, обмяна на валута в собствена сметка).
+- kind="refund" и category = категорията на първоначалната покупка: върнати пари, refund, reversal, възстановяване, chargeback. НЕ е доход.
+- kind="income" и category="Доход": заплата, хонорари, получени преводи от други хора.
+- Всичко останало е kind="expense". Тегления от банкомат категоризирай като "Теглене".
+- merchant: разпознай реалната марка зад юридическото име или терминала, ако я знаеш.
+- skipped: всеки ред, който прилича на плащане, но не го включваш (блокирана/чакаща сума, отказано плащане, нечетлив ред), с причина.`;
+
+const errorMessages: Record<string, [string, number]> = {
+  duplicate_statement: [DUPLICATE_STATEMENT, 409],
+  preview_not_found: ["Прегледът вече не е наличен. Качете файла отново.", 410],
+  preview_expired: ["Прегледът е изтекъл. Качете файла отново.", 410],
+  review_required: ["Има редове без сума в евро. Въведете сума или изключете реда.", 400],
+  invalid_corrections: ["Позволени са само промени на категория, потвърдена сума в евро и изключване на ред.", 400],
+  nothing_to_save: ["Няма редове за запис.", 400],
+};
+
+async function sha256Hex(bytes: ArrayBuffer) {
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-const saveSchema = z.object({
-  mode: z.literal("save"),
-  text: z.string().max(200_000).optional(),
-  base64: z.string().max(15_000_000).optional(),
-  fileName: z.string().min(1).max(300),
-  source: z.string().min(1).max(100),
-  transactions: z.array(importTransactionSchema).min(1).max(5000),
-});
-
-const INSTRUCTIONS = `Ти си счетоводител. Извлечи ВСИЧКИ транзакции от банковото извлечение. Не измисляй транзакции.
-Правила:
-- amount_eur: минус = плащане/изходящо, плюс = входящо. Ако сумата е в лева (BGN), раздели на 1.95583. При друга валута използвай сумата в евро от извлечението, ако има; иначе най-добра оценка и попълни original_amount/original_currency.
-- kind="transfer" и category="Вътрешен превод": преводи между собствени сметки на притежателя (напр. Top-up, захранване на Revolut от карта, превод към себе си, обмяна на валута в собствена сметка).
-- kind="refund" и category = категорията на първоначалната покупка: върнати пари, refund, reversal, възстановяване, chargeback. НЕ е доход.
-- kind="income" и category="Доход": заплата, хонорари, получени преводи от други хора.
-- Всичко останало е kind="expense". Плащанията в брой не ни интересуват; тегления от банкомат категоризирай като "Теглене".
-- merchant: разпознай реалната марка зад юридическото име или терминала (SumUp *, ZETTLE_*, ЕООД и т.н.), ако я знаеш.`;
+function toBase64(bytes: Uint8Array) {
+  let s = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+}
 
 export const Route = createFileRoute("/api/import")({
   server: {
@@ -83,68 +107,64 @@ export const Route = createFileRoute("/api/import")({
       POST: async ({ request }) => {
         const auth = await userClientFromRequest(request);
         if (!auth) return Response.json({ error: "Моля, влезте в профила си." }, { status: 401 });
-        const rawBody: unknown = await request.json();
 
-        if (
-          typeof rawBody === "object" &&
-          rawBody !== null &&
-          "mode" in rawBody &&
-          rawBody.mode === "save"
-        ) {
-          const parsedBody = saveSchema.safeParse(rawBody);
-          if (!parsedBody.success)
-            return Response.json({ error: "Данните за запис са невалидни." }, { status: 400 });
-          const body = parsedBody.data;
-          if (!body.text && !body.base64)
-            return Response.json({ error: "Липсва файл." }, { status: 400 });
-          const fileHash = await fileFingerprint(body);
-          const rows = body.transactions.map((t) => ({
-            tx_date: t.date,
-            description: t.description,
-            merchant: t.merchant,
-            amount: Math.round(t.amount * 100) / 100,
-            original_amount: t.original_amount,
-            original_currency: t.original_currency,
-            kind: t.kind,
-            category: t.category,
-          }));
-          const { error } = await auth.supabase.rpc("save_statement_import", {
-            p_file_name: body.fileName,
-            p_source: body.source,
-            p_file_hash: fileHash,
-            p_rows: rows,
+        // Save / cancel: JSON that only references a server-held preview.
+        if ((request.headers.get("content-type") ?? "").includes("application/json")) {
+          const raw: unknown = await request.json().catch(() => null);
+          const cancel = cancelSchema.safeParse(raw);
+          if (cancel.success) {
+            await auth.supabase.rpc("cancel_import_preview", { p_preview_id: cancel.data.previewId });
+            return Response.json({ ok: true });
+          }
+          const parsed = saveSchema.safeParse(raw);
+          if (!parsed.success)
+            return Response.json({ error: errorMessages["invalid_corrections"]![0] }, { status: 400 });
+          const { data, error } = await auth.supabase.rpc("commit_import_preview", {
+            p_preview_id: parsed.data.previewId,
+            p_corrections: parsed.data.corrections,
           });
           if (error) {
-            if (error.message.includes("duplicate_statement"))
-              return Response.json({ error: DUPLICATE, duplicate: true }, { status: 409 });
-            return Response.json({ error: "Грешка при запис. Опитайте отново." }, { status: 500 });
+            const known = Object.keys(errorMessages).find((k) => error.message.includes(k));
+            if (known) {
+              const [message, status] = errorMessages[known]!;
+              return Response.json({ error: message, code: known }, { status });
+            }
+            // Temporary failure: the preview stays valid, so the same save can be retried.
+            return Response.json({ error: "Записът не успя. Опитайте отново.", retry: true }, { status: 503 });
           }
-          return Response.json({ count: rows.length, source: body.source });
+          return Response.json(data);
         }
 
-        const parsedBody = fileSchema.safeParse(rawBody);
-        if (!parsedBody.success)
+        // Preview: the original file bytes; the authoritative fingerprint is computed here.
+        const form = await request.formData().catch(() => null);
+        const file = form?.get("file");
+        if (!(file instanceof File) || file.size === 0)
           return Response.json({ error: "Липсва валиден PDF или CSV файл." }, { status: 400 });
-        const body = parsedBody.data;
-        const previewHash = await fileFingerprint(body);
-        const { data: existing } = await auth.supabase
+        if (file.size > MAX_BYTES)
+          return Response.json({ error: "Файлът е твърде голям (макс. 10 MB)." }, { status: 400 });
+        const fileName = file.name.slice(0, 300) || "извлечение";
+        const bytes = await file.arrayBuffer();
+        const fileHash = await sha256Hex(bytes);
+
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        await supabaseAdmin.from("import_previews").delete().lt("expires_at", new Date().toISOString());
+
+        const { data: existing, error: dupError } = await auth.supabase
           .from("statements")
           .select("id")
-          .eq("file_hash", previewHash)
+          .eq("file_hash", fileHash)
           .limit(1);
+        if (dupError) return Response.json({ error: "Грешка при проверка на файла." }, { status: 500 });
         if (existing?.length)
-          return Response.json({ error: DUPLICATE, duplicate: true }, { status: 409 });
-        const content = body.base64
+          return Response.json({ error: DUPLICATE_STATEMENT, code: "duplicate_statement" }, { status: 409 });
+
+        const isPdf = file.type === "application/pdf" || fileName.toLowerCase().endsWith(".pdf");
+        const content = isPdf
           ? [
-              { type: "text" as const, text: `Файл: ${body.fileName}` },
-              {
-                type: "file" as const,
-                data: body.base64,
-                mediaType: "application/pdf",
-                filename: body.fileName,
-              },
+              { type: "text" as const, text: `Файл: ${fileName}` },
+              { type: "file" as const, data: toBase64(new Uint8Array(bytes)), mediaType: "application/pdf", filename: fileName },
             ]
-          : [{ type: "text" as const, text: `Файл: ${body.fileName}\n\n${body.text!}` }];
+          : [{ type: "text" as const, text: `Файл: ${fileName}\n\n${new TextDecoder().decode(bytes).slice(0, 200_000)}` }];
 
         const [{ data: custom }, { data: textRules }, { data: rules }] = await Promise.all([
           auth.supabase.from("custom_categories").select("name"),
@@ -156,9 +176,8 @@ export const Route = createFileRoute("/api/import")({
 
         let parsed: z.infer<typeof aiSchema>;
         try {
-          const provider = createProvider(request);
           const result = streamText({
-            model: provider.responses(MODEL),
+            model: createProvider(request).responses(MODEL),
             instructions: `${INSTRUCTIONS}\nПозволени категории (използвай точно тези имена): ${allowed.join(", ")}.`,
             messages: [{ role: "user", content }],
             output: Output.object({ schema: aiSchema }),
@@ -170,35 +189,62 @@ export const Route = createFileRoute("/api/import")({
           return aiErrorResponse(err);
         }
 
-        const transactions = parsed.transactions
-          .filter((t) => /^\d{4}-\d{2}-\d{2}$/.test(t.date))
-          .map((t) => {
-            const withdrawal = isWithdrawal(t);
-            const rule = ruleMap.get(t.merchant.toLowerCase());
-            const textRule = (textRules ?? []).find((r) => ruleMatches(t, r.pattern));
-            const baseCategory = allowed.includes(t.category) ? t.category : "Други";
-            return {
-              date: t.date,
-              description: t.description,
-              merchant: t.merchant,
-              amount: Math.round(t.amount_eur * 100) / 100,
-              original_amount: t.original_amount,
-              original_currency: t.original_currency,
-              kind: withdrawal
-                ? ("expense" as const)
-                : textRule
-                  ? kindForCategory(textRule.category, t.kind)
-                  : ((rule?.kind ?? t.kind) as ImportPreview["transactions"][number]["kind"]),
-              category: withdrawal
-                ? "Теглене"
-                : (textRule?.category ?? rule?.category ?? baseCategory),
-            };
+        const skipped = [...parsed.skipped];
+        const rows: PreviewRow[] = [];
+        for (const t of parsed.transactions) {
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(t.date)) {
+            skipped.push({ description: t.description, reason: "Невалидна дата" });
+            continue;
+          }
+          const money = toEur(t);
+          const withdrawal = isWithdrawal(t);
+          const rule = ruleMap.get(t.merchant.toLowerCase());
+          const textRule = (textRules ?? []).find((r) => ruleMatches(t, r.pattern));
+          const baseCategory = allowed.includes(t.category) ? t.category : "Други";
+          rows.push({
+            date: t.date,
+            description: t.description,
+            merchant: t.merchant,
+            amount: money.eur,
+            original_amount: money.original?.original_amount ?? null,
+            original_currency: money.original?.original_currency ?? null,
+            kind: withdrawal
+              ? "expense"
+              : textRule
+                ? kindForCategory(textRule.category, t.kind)
+                : ((rule?.kind ?? t.kind) as Kind),
+            category: withdrawal ? "Теглене" : (textRule?.category ?? rule?.category ?? baseCategory),
+            needs_review: money.needs_review,
+            direction: t.amount < 0 ? "out" : "in",
+            overlap: null,
           });
-        const preview: ImportPreview = {
-          fileName: body.fileName,
-          source: parsed.source,
-          transactions,
-        };
+        }
+
+        // Probable overlap with already stored payments: same date and same EUR amount. Warn only.
+        const dates = rows.map((r) => r.date).sort();
+        if (dates.length) {
+          const { data: stored } = await auth.supabase
+            .from("transactions")
+            .select("tx_date, merchant, amount")
+            .gte("tx_date", dates[0]!)
+            .lte("tx_date", dates[dates.length - 1]!)
+            .limit(1000);
+          const index = new Map<string, { merchant: string; date: string; amount: number }>();
+          for (const s of stored ?? [])
+            index.set(`${s.tx_date}|${Number(s.amount).toFixed(2)}`, { merchant: s.merchant, date: s.tx_date, amount: Number(s.amount) });
+          for (const r of rows)
+            if (!r.needs_review) r.overlap = index.get(`${r.date}|${r.amount.toFixed(2)}`) ?? null;
+        }
+
+        const { data: saved, error: saveError } = await supabaseAdmin
+          .from("import_previews")
+          .insert({ user_id: auth.userId, file_name: fileName, source: parsed.source, file_hash: fileHash, rows: rows as never })
+          .select("id")
+          .single();
+        if (saveError || !saved)
+          return Response.json({ error: "Прегледът не можа да се запази. Опитайте отново." }, { status: 500 });
+
+        const preview: ImportPreview = { previewId: saved.id, fileName, source: parsed.source, transactions: rows, skipped };
         return Response.json(preview);
       },
     },

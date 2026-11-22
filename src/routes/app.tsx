@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { MessageCircleQuestion, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { txQuery } from "@/components/app/data";
+import { summaryQuery } from "@/components/app/data";
 import { Overview } from "@/components/app/Overview";
 import { Transactions } from "@/components/app/Transactions";
 import { Upload } from "@/components/app/Upload";
@@ -178,10 +178,10 @@ function Data({
   txView: TransactionView;
   onTxViewChange: (view: TransactionView) => void;
 }) {
-  const { data: txs = [], isLoading } = useQuery(txQuery);
+  const { data: summary, isLoading } = useQuery(summaryQuery);
   const { data: categoryData } = useQuery(categoriesQuery);
   const customCategories = categoryData?.custom.map((category) => category.name) ?? [];
-  const empty = !isLoading && txs.length === 0 && customCategories.length === 0;
+  const empty = !isLoading && (summary?.tx_count ?? 0) === 0 && customCategories.length === 0;
   const Empty = (
     <div className="rounded-2xl border bg-card p-10 text-center">
       <p className="font-display text-2xl font-bold">Още няма данни</p>
@@ -199,10 +199,10 @@ function Data({
         {empty ? Empty : <Overview customCategories={customCategories} />}
       </TabsContent>
       <TabsContent value="tx">
-        {empty ? Empty : <Transactions txs={txs} view={txView} onViewChange={onTxViewChange} />}
+        {empty ? Empty : <Transactions view={txView} onViewChange={onTxViewChange} />}
       </TabsContent>
       <TabsContent value="upload">
-        <Upload onDone={() => setTab("overview")} />
+        <Upload />
       </TabsContent>
       <TabsContent value="banking">
         <BankConnections />
