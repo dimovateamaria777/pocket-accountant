@@ -32,6 +32,53 @@ function formatShare(value: number, total: number) {
   return `${sharePercent(value, total).toLocaleString("bg-BG", { maximumFractionDigits: 1 })}%`;
 }
 
+type RoundedSectorProps = {
+  cx?: number | undefined;
+  cy?: number | undefined;
+  innerRadius?: number | undefined;
+  outerRadius?: number | undefined;
+  startAngle?: number | undefined;
+  endAngle?: number | undefined;
+  fill?: string | undefined;
+};
+
+function polarPoint(cx: number, cy: number, radius: number, angle: number) {
+  const radians = (angle * Math.PI) / 180;
+  return { x: cx + radius * Math.cos(radians), y: cy - radius * Math.sin(radians) };
+}
+
+function RoundedSector({
+  cx = 0,
+  cy = 0,
+  innerRadius = 0,
+  outerRadius = 0,
+  startAngle = 0,
+  endAngle = 0,
+  fill,
+}: RoundedSectorProps) {
+  const radius = (innerRadius + outerRadius) / 2;
+  const angle = Math.abs(endAngle - startAngle);
+  const start = polarPoint(cx, cy, radius, startAngle);
+  const end = polarPoint(cx, cy, radius, endAngle);
+  const largeArc = angle > 180 ? 1 : 0;
+  const path = angle >= 359.999
+    ? (() => {
+        const middle = polarPoint(cx, cy, radius, startAngle + 180);
+        return `M ${start.x} ${start.y} A ${radius} ${radius} 0 1 0 ${middle.x} ${middle.y} A ${radius} ${radius} 0 1 0 ${start.x} ${start.y}`;
+      })()
+    : `M ${start.x} ${start.y} A ${radius} ${radius} 0 ${largeArc} 0 ${end.x} ${end.y}`;
+
+  return (
+    <path
+      d={path}
+      fill="none"
+      stroke={fill}
+      strokeWidth={outerRadius - innerRadius}
+      strokeLinecap="round"
+    />
+  );
+}
+
 export function Overview({ customCategories = [] }: { customCategories?: string[] }) {
   const { data: summary } = useQuery(summaryQuery);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -159,10 +206,11 @@ function BreakdownCard({
                 data={rows}
                 dataKey="total"
                 nameKey="label"
-                innerRadius={65}
+                innerRadius={82}
                 outerRadius={100}
-                paddingAngle={4}
-                cornerRadius={10}
+                paddingAngle={14}
+                activeIndex={rows.map((_, index) => index)}
+                activeShape={RoundedSector}
                 stroke="none"
                 strokeWidth={0}
                 onClick={(data) => {
