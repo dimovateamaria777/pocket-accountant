@@ -159,9 +159,9 @@ function BreakdownCard({
                 data={rows}
                 dataKey="total"
                 nameKey="label"
-                innerRadius={55}
+                innerRadius={65}
                 outerRadius={100}
-                paddingAngle={0}
+                paddingAngle={4}
                 cornerRadius={10}
                 stroke="none"
                 strokeWidth={0}
