@@ -162,7 +162,7 @@ function BreakdownCard({
                 innerRadius={55}
                 outerRadius={100}
                 paddingAngle={0}
-                cornerRadius={5}
+                cornerRadius={10}
                 stroke="none"
                 strokeWidth={0}
                 onClick={(data) => {
